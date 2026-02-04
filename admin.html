@@ -1,15 +1,114 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Admin</title>
-  <link rel="stylesheet" href="./css/styles.css">
-</head>
-<body>
-  <h1>Admin</h1>
-  <div id="admin"></div>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin</title>
 
-  <script src="./js/lib.js"></script>
-  <script src="./js/admin.js"></script>
+<style>
+:root{
+  --bg:#000; --text:#fff; --muted:rgba(255,255,255,.65);
+  --panel:rgba(255,255,255,.06); --stroke:rgba(255,255,255,.10);
+  --peach:#f4a08b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh;
+  background:var(--bg); color:var(--text);
+  font-family: ui-sans-serif, system-ui;
+  padding:18px 14px 24px;
+}
+.container{ max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+.row{ display:flex; gap:12px; flex-wrap:wrap; }
+.card{ background:var(--panel); border:1px solid var(--stroke); border-radius:18px; padding:14px; }
+.card h2{ margin:0 0 10px; font-size:14px; font-weight:900; }
+.fieldRow{ display:flex; gap:10px; flex-wrap:wrap; }
+.field{ flex:1; min-width:200px; display:flex; flex-direction:column; gap:6px; }
+label{ font-size:12px; color:var(--muted); font-weight:900; }
+input,select{
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);
+  color:var(--text); padding:10px; border-radius:12px; font-weight:900;
+}
+.btnInline{
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.06);
+  color:var(--text); padding:10px 12px;
+  border-radius:12px; font-weight:900; cursor:pointer;
+}
+.btnInline.peach{ background:rgba(244,160,139,.18); border-color:rgba(244,160,139,.35); }
+.table{ width:100%; border-collapse:collapse; }
+.table th,.table td{ padding:10px; border-bottom:1px solid rgba(255,255,255,.08); font-size:13px; }
+.table th{ color:var(--muted); font-weight:900; }
+.smallBtn{
+  padding:8px 10px; border-radius:10px;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.06); color:#fff; cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<div class="row">
+<div class="card" style="flex:1">
+<h2>Activities</h2>
+<div class="fieldRow">
+  <div class="field"><label>Activity</label><input id="actName"></div>
+  <div class="field"><label>SEK/h</label><input id="actRate" type="number"></div>
+  <div class="field" style="flex:.6"><label>&nbsp;</label><button id="saveAct" class="btnInline peach">Save</button></div>
+</div>
+<table class="table"><tbody id="actTable"></tbody></table>
+</div>
+
+<div class="card" style="flex:1">
+<h2>Customers</h2>
+<div class="fieldRow">
+  <div class="field"><label>Customer</label><input id="custName"></div>
+  <div class="field" style="flex:.6"><label>&nbsp;</label><button id="saveCust" class="btnInline peach">Save</button></div>
+</div>
+<table class="table"><tbody id="custTable"></tbody></table>
+</div>
+</div>
+
+<div class="row">
+<div class="card" style="flex:1">
+<h2>Responsibility</h2>
+<div class="fieldRow">
+  <div class="field"><label>Customer</label><select id="rCustomer"></select></div>
+  <div class="field"><label>Task</label><select id="rTask"></select></div>
+  <div class="field"><label>Responsible</label><input id="rName"></div>
+  <div class="field" style="flex:.6"><label>&nbsp;</label><button id="rSave" class="btnInline peach">Save</button></div>
+</div>
+<table class="table"><tbody id="rTable"></tbody></table>
+</div>
+</div>
+
+</div>
+
+<script>
+const API={get:u=>fetch(u).then(r=>r.json()),post:(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json())};
+const el=id=>document.getElementById(id);
+
+async function load(){
+  const tasks=await API.get('/api/tasks');
+  const customers=await API.get('/api/customers');
+  tasks.forEach(t=>el('actTable').insertAdjacentHTML('beforeend',`<tr><td>${t.TaskName}</td><td>${t.DefaultRatePerHour}</td></tr>`));
+  customers.forEach(c=>el('custTable').insertAdjacentHTML('beforeend',`<tr><td>${c.CustomerName}</td></tr>`));
+  customers.forEach(c=>el('rCustomer').append(new Option(c.CustomerName,c.CustomerId)));
+  tasks.forEach(t=>el('rTask').append(new Option(t.TaskName,t.TaskId)));
+}
+
+el('saveAct').onclick=()=>API.post('/api/admin/task',{name:el('actName').value,rate:el('actRate').value}).then(load);
+el('saveCust').onclick=()=>API.post('/api/admin/customer',{name:el('custName').value}).then(load);
+el('rSave').onclick=()=>API.post('/api/admin/responsibility',{
+  customerId:el('rCustomer').value,
+  taskId:el('rTask').value,
+  responsible:el('rName').value
+}).then(load);
+
+load();
+</script>
 </body>
 </html>
