@@ -1,18 +1,90 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Egaux Time</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <link rel="stylesheet" href="./css/styles.css">
-  <link rel="manifest" href="./pwa/manifest.json">
-  <meta name="theme-color" content="#000000">
-</head>
-<body>
-  <div id="tasks"></div>
-  <button id="pause" class="primary">Pause</button>
+<meta charset="UTF-8">
+<title>Time</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
 
-  <script src="./js/lib.js"></script>
-  <script src="./js/mobile.js"></script>
+<link rel="manifest" href="/pwa/manifest.json">
+<meta name="theme-color" content="#000">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+
+<style>
+:root{
+  --bg:#000;
+  --text:#fff;
+  --panel:rgba(255,255,255,.06);
+  --active:rgba(255,255,255,.16);
+  --peach:#f4a08b;
+  --stroke:rgba(255,255,255,.14);
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  min-height:100vh;
+  background:var(--bg);
+  color:var(--text);
+  font-family:system-ui,-apple-system,BlinkMacSystemFont,sans-serif;
+}
+#top{
+  position:fixed;top:12px;left:12px;
+}
+#cancel{
+  background:none;border:none;color:#888;font-size:14px;
+}
+#clock{
+  margin:60px auto 20px;
+  width:220px;height:220px;
+}
+#tasks{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  padding:16px;
+}
+.task{
+  background:var(--panel);
+  padding:18px;
+  border-radius:18px;
+  text-align:center;
+}
+.task.active{background:var(--active)}
+#pauseWrap{
+  position:fixed;
+  bottom:24px;
+  width:100%;
+  display:flex;
+  justify-content:center;
+}
+#pause{
+  background:var(--peach);
+  color:#000;
+  border:none;
+  padding:18px 28px;
+  border-radius:24px;
+  font-size:16px;
+}
+</style>
+</head>
+
+<body>
+<div id="top">
+  <button id="cancel">Cancel</button>
+</div>
+
+<svg id="clock" viewBox="0 0 200 200">
+  <circle cx="100" cy="100" r="90" stroke="var(--stroke)" stroke-width="2" fill="none"/>
+  <path id="arc" d="" stroke="#fff" stroke-width="4" fill="none" stroke-linecap="round"/>
+</svg>
+
+<div id="tasks"></div>
+
+<div id="pauseWrap">
+  <button id="pause">Pause</button>
+</div>
+
+<script src="/js/lib.js"></script>
+<script src="/js/mobile.js"></script>
 </body>
 </html>
