@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Mobile</title>
+<script src="./data.js"></script>
+<style>
+  :root{
+    --bg:#000;
+    --text:#fff;
+    --panel:rgba(255,255,255,.06);
+    --active:rgba(255,255,255,.16);
+    --peach:#f4a08b;
+    --peach2:#ffb39e;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh;
+    display:grid; place-items:center;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+  }
+  .phone{ width:390px; max-width:96vw; padding:18px 16px; background:#000; }
+  .top{ padding:6px 2px 14px; display:flex; flex-direction:column; gap:6px; }
+  .activity{
+    font-size:18px; font-weight:900; letter-spacing:.2px;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:24px;
+  }
+  .timer{
+    font-variant-numeric: tabular-nums;
+    font-size:34px; font-weight:900; letter-spacing:.5px; line-height:1.05;
+  }
+  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+  .btn{
+    border:0; border-radius:22px;
+    background:var(--panel); color:var(--text);
+    padding:18px 16px; min-height:86px;
+    text-align:left; font-size:18px; font-weight:900;
+    cursor:pointer;
+    transition: transform .06s ease, background .18s ease;
+  }
+  .btn:active{transform:scale(.99)}
+  .btn.active{ background:var(--active); }
+  .bottom{ margin-top:14px; }
+  .pause{
+    width:100%;
+    border:0; border-radius:28px;
+    background:var(--peach); color:#000;
+    padding:18px 16px; min-height:64px;
+    font-size:18px; font-weight:900;
+    cursor:pointer;
+    transition: transform .06s ease, background .18s ease;
+  }
+  .pause:active{transform:scale(.99)}
+  .pause.active{ background:var(--peach2); }
+</style>
+</head>
+<body>
+  <div class="phone">
+    <div class="top">
+      <div class="activity" id="activity">—</div>
+      <div class="timer" id="timer">00:00:00</div>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="bottom">
+      <button class="pause" id="pause">Pause</button>
+    </div>
+  </div>
+
+<script>
+(() => {
+  const BREAK_ID = "break";
+  const grid = document.getElementById("grid");
+  const activity = document.getElementById("activity");
+  const timer = document.getElementById("timer");
+  const pause = document.getElementById("pause");
+
+  // Choose top 4 paid activities for the mobile view (simple rule)
+  const taskIds = TR.state.activities
+    .filter(a => a.id !== "break")
+    .slice()
+    .sort((a,b)=> b.rate - a.rate)
+    .slice(0,4)
+    .map(a => a.id);
+
+  const mobile = { activeId:null, activeStartMs:null };
+
+  function pad(n){ return String(n).padStart(2,"0"); }
+  function fmtHMS(ms){
+    const s = Math.max(0, Math.floor(ms/1000));
+    const h = Math.floor(s/3600);
+    const m = Math.floor((s%3600)/60);
+    const sec = s%60;
+    return `${pad(h)}:${pad(m)}:${pad(sec)}`;
+  }
+
+  function paint(){
+    [...grid.querySelectorAll(".btn")].forEach(b => {
+      b.classList.toggle("active", b.dataset.id === mobile.activeId);
+    });
+    pause.classList.toggle("active", mobile.activeId === BREAK_ID);
+
+    const label = mobile.activeId === BREAK_ID
+      ? "Pause"
+      : (TR.taskName(mobile.activeId) || "—");
+
+    activity.textContent = label || "—";
+  }
+
+  function start(taskId){
+    mobile.activeId = taskId;
+    mobile.activeStartMs = Date.now();
+    paint();
+  }
+
+  function render(){
+    grid.innerHTML = "";
+    taskIds.forEach(id => {
+      const btn = document.createElement("button");
+      btn.className = "btn";
+      btn.dataset.id = id;
+      btn.textContent = TR.taskName(id);
+      btn.addEventListener("click", () => start(id));
+      grid.appendChild(btn);
+    });
+    pause.addEventListener("click", () => start(BREAK_ID));
+    paint();
+  }
+
+  setInterval(() => {
+    timer.textContent = mobile.activeStartMs ? fmtHMS(Date.now() - mobile.activeStartMs) : "00:00:00";
+  }, 250);
+
+  render();
+})();
+</script>
+</body>
+</html>
