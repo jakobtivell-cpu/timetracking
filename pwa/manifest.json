@@ -1,6 +1,6 @@
 {
   "name": "Egaux Time",
-  "short_name": "EgauxTime",
+  "short_name": "Time",
   "start_url": "/mobile.html",
   "display": "standalone",
   "background_color": "#000000",
