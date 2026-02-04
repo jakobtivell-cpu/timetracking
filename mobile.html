@@ -3,135 +3,437 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Mobile</title>
+<title>Customer</title>
 <script src="./data.js"></script>
 <style>
   :root{
     --bg:#000;
     --text:#fff;
+    --muted:rgba(255,255,255,.65);
     --panel:rgba(255,255,255,.06);
-    --active:rgba(255,255,255,.16);
+    --stroke:rgba(255,255,255,.10);
     --peach:#f4a08b;
-    --peach2:#ffb39e;
   }
   *{box-sizing:border-box}
   body{
     margin:0; min-height:100vh;
-    display:grid; place-items:center;
     background:var(--bg); color:var(--text);
     font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    padding:18px 14px 24px;
   }
-  .phone{ width:390px; max-width:96vw; padding:18px 16px; background:#000; }
-  .top{ padding:6px 2px 14px; display:flex; flex-direction:column; gap:6px; }
-  .activity{
-    font-size:18px; font-weight:900; letter-spacing:.2px;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:24px;
+  .container{ max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+  .row{ display:flex; gap:12px; flex-wrap:wrap; }
+  .card{ background:var(--panel); border:1px solid var(--stroke); border-radius:18px; padding:14px; }
+  .card h2{ margin:0 0 10px; font-size:14px; font-weight:900; letter-spacing:.2px; color:rgba(255,255,255,.92); }
+
+  .fieldRow{ display:flex; gap:10px; flex-wrap:wrap; }
+  .field{ flex:1; min-width:200px; display:flex; flex-direction:column; gap:6px; }
+  label{ font-size:12px; color:var(--muted); font-weight:900; }
+  select{
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    color:var(--text);
+    padding:10px;
+    border-radius:12px;
+    outline:none;
+    font-weight:900;
   }
-  .timer{
-    font-variant-numeric: tabular-nums;
-    font-size:34px; font-weight:900; letter-spacing:.5px; line-height:1.05;
-  }
-  .grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .btn{
-    border:0; border-radius:22px;
-    background:var(--panel); color:var(--text);
-    padding:18px 16px; min-height:86px;
-    text-align:left; font-size:18px; font-weight:900;
+
+  .kpi{ display:flex; flex-direction:column; gap:4px; min-width:180px; }
+  .kpi small{ color:var(--muted); font-size:12px; font-weight:900; }
+  .kpi b{ font-variant-numeric: tabular-nums; font-size:22px; font-weight:900; }
+
+  .btnInline{
+    border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.06);
+    color:var(--text);
+    padding:10px 12px;
+    border-radius:12px;
     cursor:pointer;
-    transition: transform .06s ease, background .18s ease;
+    font-weight:900;
   }
-  .btn:active{transform:scale(.99)}
-  .btn.active{ background:var(--active); }
-  .bottom{ margin-top:14px; }
-  .pause{
-    width:100%;
-    border:0; border-radius:28px;
-    background:var(--peach); color:#000;
-    padding:18px 16px; min-height:64px;
-    font-size:18px; font-weight:900;
-    cursor:pointer;
-    transition: transform .06s ease, background .18s ease;
+  .btnInline.peach{
+    background:rgba(244,160,139,.18);
+    border-color:rgba(244,160,139,.35);
   }
-  .pause:active{transform:scale(.99)}
-  .pause.active{ background:var(--peach2); }
+
+  .table{ width:100%; border-collapse:collapse; border-radius:14px; overflow:hidden; }
+  .table th, .table td{
+    text-align:left;
+    padding:10px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    font-size:13px;
+    color:rgba(255,255,255,.92);
+    vertical-align:top;
+  }
+  .table th{ color:var(--muted); font-weight:900; background:rgba(255,255,255,.04); }
+  .table tr:last-child td{ border-bottom:0; }
+
+  .bars{ display:flex; flex-direction:column; gap:10px; }
+  .barRow{
+    display:grid;
+    grid-template-columns: 170px 1fr 80px;
+    gap:10px;
+    align-items:center;
+    font-size:13px;
+    color:rgba(255,255,255,.92);
+  }
+  .bar{
+    height:12px;
+    border-radius:999px;
+    background:rgba(255,255,255,.08);
+    overflow:hidden;
+  }
+  .bar > i{
+    display:block;
+    height:100%;
+    width:0%;
+    border-radius:999px;
+    background:rgba(255,255,255,.26);
+  }
+
+  .donutWrap{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
+  canvas{ background:transparent; border-radius:14px; }
+  .legend{ display:flex; flex-direction:column; gap:8px; }
+  .legendItem{ display:flex; gap:10px; align-items:center; color:rgba(255,255,255,.92); font-size:13px; }
+  .swatch{ width:10px; height:10px; border-radius:999px; background:rgba(255,255,255,.25); }
+
+  @media (max-width:520px){
+    .barRow{ grid-template-columns: 120px 1fr 70px; }
+  }
 </style>
 </head>
 <body>
-  <div class="phone">
-    <div class="top">
-      <div class="activity" id="activity">—</div>
-      <div class="timer" id="timer">00:00:00</div>
+  <div class="container">
+
+    <div class="row">
+      <div class="card" style="flex:1; min-width:260px;">
+        <h2>Customer</h2>
+        <div class="fieldRow">
+          <div class="field">
+            <label>Customer</label>
+            <select id="customer"></select>
+          </div>
+
+          <div class="field">
+            <label>View</label>
+            <select id="period">
+              <option value="month">Month</option>
+              <option value="ytd">YTD</option>
+              <option value="all">All time</option>
+            </select>
+          </div>
+
+          <div class="field" id="monthField">
+            <label>Month</label>
+            <select id="month"></select>
+          </div>
+
+          <div class="field" id="yearField" style="display:none;">
+            <label>Year</label>
+            <select id="year"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="flex:1; min-width:260px;">
+        <h2>Totals</h2>
+        <div class="row">
+          <div class="kpi">
+            <small>Total hours</small>
+            <b id="totalHours">0.00</b>
+          </div>
+          <div class="kpi">
+            <small>Total (SEK)</small>
+            <b id="totalSek">0</b>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="min-width:240px;">
+        <h2>Approval</h2>
+        <button class="btnInline peach" id="approve">Approve</button>
+        <div style="height:8px"></div>
+        <div style="color:var(--muted); font-size:12px; font-weight:900;" id="approvalState">Not approved</div>
+      </div>
     </div>
-    <div class="grid" id="grid"></div>
-    <div class="bottom">
-      <button class="pause" id="pause">Pause</button>
+
+    <div class="row">
+      <div class="card" style="flex:1; min-width:320px;">
+        <h2>Cost per task</h2>
+        <div class="bars" id="bars"></div>
+      </div>
+
+      <div class="card" style="flex:1; min-width:320px;">
+        <h2>Cost distribution</h2>
+        <div class="donutWrap">
+          <canvas id="donut" width="190" height="190"></canvas>
+          <div class="legend" id="legend"></div>
+        </div>
+      </div>
     </div>
+
+    <div class="row">
+      <div class="card" style="flex:1; min-width:320px;">
+        <h2>Logs</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>Category</th>
+              <th>Responsible</th>
+              <th>Hours</th>
+              <th>SEK</th>
+            </tr>
+          </thead>
+          <tbody id="logs"></tbody>
+        </table>
+      </div>
+    </div>
+
   </div>
 
 <script>
 (() => {
-  const BREAK_ID = "break";
-  const grid = document.getElementById("grid");
-  const activity = document.getElementById("activity");
-  const timer = document.getElementById("timer");
-  const pause = document.getElementById("pause");
-
-  // Choose top 4 paid activities for the mobile view (simple rule)
-  const taskIds = TR.state.activities
-    .filter(a => a.id !== "break")
-    .slice()
-    .sort((a,b)=> b.rate - a.rate)
-    .slice(0,4)
-    .map(a => a.id);
-
-  const mobile = { activeId:null, activeStartMs:null };
-
-  function pad(n){ return String(n).padStart(2,"0"); }
-  function fmtHMS(ms){
-    const s = Math.max(0, Math.floor(ms/1000));
-    const h = Math.floor(s/3600);
-    const m = Math.floor((s%3600)/60);
-    const sec = s%60;
-    return `${pad(h)}:${pad(m)}:${pad(sec)}`;
+  // If data.js didn't load for some reason, fail gracefully
+  if(!window.TR || !TR.state){
+    document.body.innerHTML = '<div style="color:white;padding:16px;font-family:system-ui">Missing data.js</div>';
+    return;
   }
 
-  function paint(){
-    [...grid.querySelectorAll(".btn")].forEach(b => {
-      b.classList.toggle("active", b.dataset.id === mobile.activeId);
+  const els = {
+    customer: document.getElementById("customer"),
+    period: document.getElementById("period"),
+    month: document.getElementById("month"),
+    year: document.getElementById("year"),
+    monthField: document.getElementById("monthField"),
+    yearField: document.getElementById("yearField"),
+    totalHours: document.getElementById("totalHours"),
+    totalSek: document.getElementById("totalSek"),
+    bars: document.getElementById("bars"),
+    logs: document.getElementById("logs"),
+    approve: document.getElementById("approve"),
+    approvalState: document.getElementById("approvalState"),
+    donut: document.getElementById("donut"),
+    legend: document.getElementById("legend"),
+  };
+
+  function renderBars(breakdown){
+    els.bars.innerHTML = "";
+    const max = Math.max(1, ...breakdown.map(x => x.sek));
+    breakdown.forEach(x => {
+      const row = document.createElement("div");
+      row.className = "barRow";
+
+      const left = document.createElement("div");
+      left.textContent = TR.taskName(x.taskId);
+
+      const mid = document.createElement("div");
+      mid.className = "bar";
+      const fill = document.createElement("i");
+      fill.style.width = `${Math.round((x.sek / max) * 100)}%`;
+      mid.appendChild(fill);
+
+      const right = document.createElement("div");
+      right.style.textAlign = "right";
+      right.style.fontVariantNumeric = "tabular-nums";
+      right.textContent = `${Math.round(x.sek)}`;
+
+      row.appendChild(left);
+      row.appendChild(mid);
+      row.appendChild(right);
+      els.bars.appendChild(row);
     });
-    pause.classList.toggle("active", mobile.activeId === BREAK_ID);
-
-    const label = mobile.activeId === BREAK_ID
-      ? "Pause"
-      : (TR.taskName(mobile.activeId) || "—");
-
-    activity.textContent = label || "—";
   }
 
-  function start(taskId){
-    mobile.activeId = taskId;
-    mobile.activeStartMs = Date.now();
-    paint();
+  function drawDonut(breakdown){
+    const canvas = els.donut;
+    const ctx = canvas.getContext("2d");
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    const total = breakdown.reduce((a,b)=> a + b.sek, 0) || 1;
+    const cx = canvas.width/2, cy = canvas.height/2;
+    const rOuter = 80, rInner = 52;
+
+    const shades = breakdown.map((_, i) => {
+      const v = 255 - Math.min(160, i * 22);
+      return `rgba(${v},${v},${v},0.28)`;
+    });
+
+    let start = -Math.PI/2;
+    breakdown.forEach((x, i) => {
+      const ang = (x.sek / total) * Math.PI*2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, rOuter, start, start+ang);
+      ctx.closePath();
+      ctx.fillStyle = shades[i];
+      ctx.fill();
+      start += ang;
+    });
+
+    ctx.beginPath();
+    ctx.arc(cx, cy, rInner, 0, Math.PI*2);
+    ctx.fillStyle = "#000";
+    ctx.fill();
+
+    ctx.fillStyle = "rgba(255,255,255,.9)";
+    ctx.font = "900 14px ui-sans-serif, system-ui";
+    ctx.textAlign = "center";
+    ctx.fillText("Total", cx, cy - 4);
+    ctx.font = "900 18px ui-sans-serif, system-ui";
+    ctx.fillText(String(Math.round(total)), cx, cy + 18);
+
+    els.legend.innerHTML = "";
+    breakdown.slice(0,6).forEach((x,i) => {
+      const item = document.createElement("div");
+      item.className = "legendItem";
+
+      const sw = document.createElement("div");
+      sw.className = "swatch";
+      sw.style.background = shades[i];
+
+      const txt = document.createElement("div");
+      txt.textContent = `${TR.taskName(x.taskId)} • ${Math.round(x.sek)} SEK`;
+
+      item.appendChild(sw);
+      item.appendChild(txt);
+      els.legend.appendChild(item);
+    });
+  }
+
+  function periodKey(){
+    const customerId = els.customer.value;
+    const p = els.period.value;
+    if(p === "month") return `${customerId}|month|${els.month.value}`;
+    if(p === "ytd") return `${customerId}|ytd|${els.year.value}`;
+    return `${customerId}|all`;
+  }
+
+  function filterEntries(){
+    const customerId = els.customer.value;
+    const p = els.period.value;
+
+    const all = TR.state.entries.filter(e => e.customerId === customerId);
+
+    if(p === "all") return all;
+
+    if(p === "month"){
+      const mk = els.month.value;
+      return all.filter(e => TR.monthKey(e.start) === mk);
+    }
+
+    const year = Number(els.year.value);
+    const now = new Date();
+    return all.filter(e => {
+      const d = e.start;
+      if(d.getFullYear() !== year) return false;
+      if(year === now.getFullYear()) return d <= now;
+      return true;
+    });
+  }
+
+  function renderLogs(entries){
+    els.logs.innerHTML = "";
+    entries
+      .slice()
+      .sort((a,b)=> b.start - a.start)
+      .forEach(e => {
+        const { hrs, sek } = TR.calcEntry(e);
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${TR.fmtDate(e.start)}</td>
+          <td>${TR.fmtTime(e.start)}</td>
+          <td>${TR.fmtTime(e.end)}</td>
+          <td>${TR.taskName(e.taskId)}</td>
+          <td>${TR.responsibleFor(e.customerId, e.taskId)}</td>
+          <td>${TR.round2(hrs).toFixed(2)}</td>
+          <td>${Math.round(sek)}</td>
+        `;
+        els.logs.appendChild(tr);
+      });
   }
 
   function render(){
-    grid.innerHTML = "";
-    taskIds.forEach(id => {
-      const btn = document.createElement("button");
-      btn.className = "btn";
-      btn.dataset.id = id;
-      btn.textContent = TR.taskName(id);
-      btn.addEventListener("click", () => start(id));
-      grid.appendChild(btn);
-    });
-    pause.addEventListener("click", () => start(BREAK_ID));
-    paint();
+    const p = els.period.value;
+    els.monthField.style.display = (p === "month") ? "" : "none";
+    els.yearField.style.display = (p === "ytd") ? "" : "none";
+
+    const entries = filterEntries();
+    const totals = TR.sumEntries(entries);
+    els.totalHours.textContent = TR.round2(totals.hrs).toFixed(2);
+    els.totalSek.textContent = String(Math.round(totals.sek));
+
+    const breakdown = TR.taskBreakdown(entries);
+    renderBars(breakdown);
+    drawDonut(breakdown);
+    renderLogs(entries);
+
+    // approvals stored separately for mock
+    const key = periodKey();
+    let approvals = {};
+    try { approvals = JSON.parse(localStorage.getItem("tr_mock_approvals_v1") || "{}"); } catch {}
+    const approvedAt = approvals[key] || null;
+
+    els.approvalState.textContent = approvedAt ? `Approved: ${approvedAt}` : "Not approved";
+    els.approve.textContent = approvedAt ? "Approved" : "Approve";
+    els.approve.disabled = !!approvedAt;
+    els.approve.style.opacity = approvedAt ? 0.6 : 1;
+    els.approve.style.cursor = approvedAt ? "default" : "pointer";
   }
 
-  setInterval(() => {
-    timer.textContent = mobile.activeStartMs ? fmtHMS(Date.now() - mobile.activeStartMs) : "00:00:00";
-  }, 250);
+  function fillSelectors(){
+    els.customer.innerHTML = "";
+    TR.state.customers.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      els.customer.appendChild(opt);
+    });
 
+    els.month.innerHTML = "";
+    TR.uniqueMonths().forEach(mk => {
+      const opt = document.createElement("option");
+      opt.value = mk;
+      opt.textContent = mk;
+      els.month.appendChild(opt);
+    });
+
+    els.year.innerHTML = "";
+    TR.yearRange().forEach(y => {
+      const opt = document.createElement("option");
+      opt.value = String(y);
+      opt.textContent = String(y);
+      els.year.appendChild(opt);
+    });
+
+    const rn = TR.slugify("RN Nordic");
+    if([...els.customer.options].some(o => o.value === rn)) els.customer.value = rn;
+    if([...els.month.options].some(o => o.value === "2026-01")) els.month.value = "2026-01";
+    if([...els.year.options].some(o => o.value === "2026")) els.year.value = "2026";
+  }
+
+  els.customer.addEventListener("change", render);
+  els.period.addEventListener("change", render);
+  els.month.addEventListener("change", render);
+  els.year.addEventListener("change", render);
+
+  els.approve.addEventListener("click", () => {
+    const key = periodKey();
+    let approvals = {};
+    try { approvals = JSON.parse(localStorage.getItem("tr_mock_approvals_v1") || "{}"); } catch {}
+    if(approvals[key]) return;
+
+    const d = new Date();
+    const stamp = `${TR.fmtDate(d)} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+    approvals[key] = stamp;
+    localStorage.setItem("tr_mock_approvals_v1", JSON.stringify(approvals));
+    render();
+  });
+
+  fillSelectors();
   render();
 })();
 </script>
