@@ -1,15 +1,233 @@
-<!DOCTYPE html>
-<html>
+<!doctype html>
+<html lang="en">
 <head>
-  <meta charset="utf-8">
-  <title>Customer View</title>
-  <link rel="stylesheet" href="./css/styles.css">
-</head>
-<body>
-  <h1>Customer Summary</h1>
-  <div id="report"></div>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Customer</title>
 
-  <script src="./js/lib.js"></script>
-  <script src="./js/customer.js"></script>
+<style>
+/* === SAME CSS AS MOCK (UNCHANGED) === */
+:root{
+  --bg:#000; --text:#fff; --muted:rgba(255,255,255,.65);
+  --panel:rgba(255,255,255,.06); --stroke:rgba(255,255,255,.10);
+  --peach:#f4a08b;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; min-height:100vh;
+  background:var(--bg); color:var(--text);
+  font-family: ui-sans-serif, system-ui;
+  padding:18px 14px 24px;
+}
+.container{ max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+.row{ display:flex; gap:12px; flex-wrap:wrap; }
+.card{ background:var(--panel); border:1px solid var(--stroke); border-radius:18px; padding:14px; }
+.card h2{ margin:0 0 10px; font-size:14px; font-weight:900; }
+.fieldRow{ display:flex; gap:10px; flex-wrap:wrap; }
+.field{ flex:1; min-width:200px; display:flex; flex-direction:column; gap:6px; }
+label{ font-size:12px; color:var(--muted); font-weight:900; }
+select{
+  background:rgba(255,255,255,.06);
+  border:1px solid rgba(255,255,255,.12);
+  color:var(--text); padding:10px; border-radius:12px; font-weight:900;
+}
+.kpi{ display:flex; flex-direction:column; gap:4px; min-width:180px; }
+.kpi small{ color:var(--muted); font-size:12px; font-weight:900; }
+.kpi b{ font-size:22px; font-weight:900; }
+.btnInline{
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.06);
+  color:var(--text); padding:10px 12px;
+  border-radius:12px; font-weight:900; cursor:pointer;
+}
+.btnInline.peach{ background:rgba(244,160,139,.18); border-color:rgba(244,160,139,.35); }
+.table{ width:100%; border-collapse:collapse; }
+.table th,.table td{ padding:10px; border-bottom:1px solid rgba(255,255,255,.08); font-size:13px; }
+.table th{ color:var(--muted); font-weight:900; }
+.bars{ display:flex; flex-direction:column; gap:10px; }
+.barRow{ display:grid; grid-template-columns:170px 1fr 80px; gap:10px; }
+.bar{ height:12px; background:rgba(255,255,255,.08); border-radius:999px; }
+.bar>i{ display:block; height:100%; background:rgba(255,255,255,.26); border-radius:999px; }
+.donutWrap{ display:flex; gap:14px; }
+.legend{ display:flex; flex-direction:column; gap:8px; }
+.legendItem{ display:flex; gap:10px; font-size:13px; }
+.swatch{ width:10px; height:10px; border-radius:999px; background:#999; }
+</style>
+</head>
+
+<body>
+<div class="container">
+
+<!-- === UI MARKUP UNCHANGED === -->
+<div class="row">
+  <div class="card" style="flex:1">
+    <h2>Customer</h2>
+    <div class="fieldRow">
+      <div class="field"><label>Customer</label><select id="customer"></select></div>
+      <div class="field"><label>View</label>
+        <select id="period">
+          <option value="month">Month</option>
+          <option value="ytd">YTD</option>
+          <option value="all">All time</option>
+        </select>
+      </div>
+      <div class="field" id="monthField"><label>Month</label><select id="month"></select></div>
+      <div class="field" id="yearField" style="display:none;"><label>Year</label><select id="year"></select></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Totals</h2>
+    <div class="row">
+      <div class="kpi"><small>Total hours</small><b id="totalHours">0</b></div>
+      <div class="kpi"><small>Total (SEK)</small><b id="totalSek">0</b></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Approval</h2>
+    <button class="btnInline peach" id="approve">Approve</button>
+    <div id="approvalState" style="margin-top:8px;font-size:12px;color:var(--muted)">Not approved</div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="card" style="flex:1"><h2>Cost per task</h2><div id="bars" class="bars"></div></div>
+  <div class="card" style="flex:1">
+    <h2>Cost distribution</h2>
+    <div class="donutWrap">
+      <canvas id="donut" width="190" height="190"></canvas>
+      <div id="legend" class="legend"></div>
+    </div>
+  </div>
+</div>
+
+<div class="row">
+  <div class="card" style="flex:1">
+    <h2>Logs</h2>
+    <table class="table">
+      <thead>
+        <tr><th>Date</th><th>In</th><th>Out</th><th>Task</th><th>Responsible</th><th>Hours</th><th>SEK</th></tr>
+      </thead>
+      <tbody id="logs"></tbody>
+    </table>
+  </div>
+</div>
+
+</div>
+
+<script>
+/* === API-DRIVEN LOGIC === */
+const API = {
+  get:u=>fetch(u).then(r=>r.json()),
+  post:(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json())
+};
+
+const els = Object.fromEntries(
+  ['customer','period','month','year','monthField','yearField','totalHours','totalSek','bars','logs','approve','approvalState','donut','legend']
+  .map(id=>[id,document.getElementById(id)])
+);
+
+let customers=[], tasks=[], entries=[], respMap={};
+
+function monthKey(d){ return d.toISOString().slice(0,7); }
+
+function sum(entries){
+  return entries.reduce((a,e)=>{
+    a.h+=e.DurationMinutes/60;
+    a.s+=e.CostAmount;
+    return a;
+  },{h:0,s:0});
+}
+
+function breakdown(entries){
+  const m={};
+  entries.forEach(e=>{
+    m[e.TaskName]=(m[e.TaskName]||0)+e.CostAmount;
+  });
+  return Object.entries(m).map(([k,v])=>({task:k,sek:v}));
+}
+
+async function load(){
+  customers=await API.get('/api/customers');
+  tasks=await API.get('/api/tasks');
+  customers.forEach(c=>{
+    const o=document.createElement('option');o.value=c.CustomerId;o.textContent=c.CustomerName;
+    els.customer.appendChild(o);
+  });
+  renderPeriods();
+  await refresh();
+}
+
+function renderPeriods(){
+  const now=new Date();
+  for(let i=0;i<12;i++){
+    const d=new Date(now.getFullYear(),now.getMonth()-i,1);
+    const mk=monthKey(d);
+    els.month.append(new Option(mk,mk));
+  }
+  for(let y=now.getFullYear();y>=now.getFullYear()-4;y--){
+    els.year.append(new Option(y,y));
+  }
+}
+
+async function refresh(){
+  const cid=els.customer.value;
+  let from,to;
+  const p=els.period.value;
+  if(p==='month'){from=els.month.value+'-01';to=from;}
+  if(p==='ytd'){from=els.year.value+'-01-01';}
+  entries=await API.get(`/api/timeentries?customerId=${cid}&from=${from||''}&to=${to||''}`);
+  render();
+}
+
+function render(){
+  els.monthField.style.display=els.period.value==='month'?'':'none';
+  els.yearField.style.display=els.period.value==='ytd'?'':'none';
+
+  const s=sum(entries);
+  els.totalHours.textContent=s.h.toFixed(2);
+  els.totalSek.textContent=Math.round(s.s);
+
+  renderBars();
+  renderDonut();
+  renderLogs();
+}
+
+function renderBars(){
+  els.bars.innerHTML='';
+  const b=breakdown(entries);
+  const max=Math.max(...b.map(x=>x.sek),1);
+  b.forEach(x=>{
+    const r=document.createElement('div');r.className='barRow';
+    r.innerHTML=`<div>${x.task}</div><div class="bar"><i style="width:${x.sek/max*100}%"></i></div><div style="text-align:right">${Math.round(x.sek)}</div>`;
+    els.bars.appendChild(r);
+  });
+}
+
+function renderDonut(){
+  const ctx=els.donut.getContext('2d');
+  ctx.clearRect(0,0,190,190);
+}
+
+function renderLogs(){
+  els.logs.innerHTML='';
+  entries.forEach(e=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`
+      <td>${e.StartTimeUtc.slice(0,10)}</td>
+      <td>${e.StartTimeUtc.slice(11,16)}</td>
+      <td>${e.EndTimeUtc.slice(11,16)}</td>
+      <td>${e.TaskName}</td>
+      <td>${e.ResponsibleName||''}</td>
+      <td>${(e.DurationMinutes/60).toFixed(2)}</td>
+      <td>${Math.round(e.CostAmount)}</td>`;
+    els.logs.appendChild(tr);
+  });
+}
+
+['customer','period','month','year'].forEach(id=>els[id].onchange=refresh);
+load();
+</script>
 </body>
 </html>
