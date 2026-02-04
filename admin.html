@@ -1,0 +1,366 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Admin</title>
+<script src="./data.js"></script>
+<style>
+  :root{
+    --bg:#000;
+    --text:#fff;
+    --muted:rgba(255,255,255,.65);
+    --panel:rgba(255,255,255,.06);
+    --stroke:rgba(255,255,255,.10);
+    --peach:#f4a08b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; min-height:100vh;
+    background:var(--bg); color:var(--text);
+    font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+    padding:18px 14px 24px;
+  }
+  .container{ max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:14px; }
+  .row{ display:flex; gap:12px; flex-wrap:wrap; }
+  .card{ background:var(--panel); border:1px solid var(--stroke); border-radius:18px; padding:14px; }
+  .card h2{ margin:0 0 10px; font-size:14px; font-weight:900; letter-spacing:.2px; color:rgba(255,255,255,.92); }
+
+  .fieldRow{ display:flex; gap:10px; flex-wrap:wrap; }
+  .field{ flex:1; min-width:200px; display:flex; flex-direction:column; gap:6px; }
+  label{ font-size:12px; color:var(--muted); font-weight:900; }
+  input, select{
+    background:rgba(255,255,255,.06);
+    border:1px solid rgba(255,255,255,.12);
+    color:var(--text);
+    padding:10px;
+    border-radius:12px;
+    outline:none;
+    font-weight:900;
+  }
+
+  .btnInline{
+    border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.06);
+    color:var(--text);
+    padding:10px 12px;
+    border-radius:12px;
+    cursor:pointer;
+    font-weight:900;
+  }
+  .btnInline.peach{
+    background:rgba(244,160,139,.18);
+    border-color:rgba(244,160,139,.35);
+  }
+
+  .table{ width:100%; border-collapse:collapse; border-radius:14px; overflow:hidden; }
+  .table th, .table td{
+    text-align:left;
+    padding:10px;
+    border-bottom:1px solid rgba(255,255,255,.08);
+    font-size:13px;
+    color:rgba(255,255,255,.92);
+    vertical-align:top;
+  }
+  .table th{ color:var(--muted); font-weight:900; background:rgba(255,255,255,.04); }
+  .table tr:last-child td{ border-bottom:0; }
+
+  .smallBtn{
+    padding:8px 10px;
+    border-radius:10px;
+    border:1px solid rgba(255,255,255,.14);
+    background:rgba(255,255,255,.06);
+    color:var(--text);
+    font-weight:900;
+    cursor:pointer;
+  }
+</style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="row">
+      <div class="card" style="flex:1; min-width:320px;">
+        <h2>Activities</h2>
+        <div class="fieldRow">
+          <div class="field">
+            <label>Activity</label>
+            <input id="actName" placeholder="e.g. Forecastapp" />
+          </div>
+          <div class="field">
+            <label>SEK/h</label>
+            <input id="actRate" type="number" min="0" step="1" placeholder="1000" />
+          </div>
+          <div class="field" style="flex:0.7; min-width:170px;">
+            <label>&nbsp;</label>
+            <button class="btnInline peach" id="saveAct">Add / Update</button>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <table class="table">
+          <thead><tr><th>Activity</th><th>SEK/h</th><th></th></tr></thead>
+          <tbody id="actTable"></tbody>
+        </table>
+      </div>
+
+      <div class="card" style="flex:1; min-width:320px;">
+        <h2>Customers</h2>
+        <div class="fieldRow">
+          <div class="field">
+            <label>Customer</label>
+            <input id="custName" placeholder="e.g. RN Nordic" />
+          </div>
+          <div class="field" style="flex:0.7; min-width:170px;">
+            <label>&nbsp;</label>
+            <button class="btnInline peach" id="saveCust">Add / Update</button>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <table class="table">
+          <thead><tr><th>Customer</th><th></th></tr></thead>
+          <tbody id="custTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card" style="flex:1; min-width:320px;">
+        <h2>Responsibility per customer + task</h2>
+
+        <div class="fieldRow">
+          <div class="field">
+            <label>Customer</label>
+            <select id="rCustomer"></select>
+          </div>
+          <div class="field">
+            <label>Task</label>
+            <select id="rTask"></select>
+          </div>
+          <div class="field">
+            <label>Responsible</label>
+            <input id="rName" placeholder="e.g. Martin Fossum" />
+          </div>
+          <div class="field" style="flex:0.7; min-width:170px;">
+            <label>&nbsp;</label>
+            <button class="btnInline peach" id="rSave">Save</button>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+        <table class="table">
+          <thead><tr><th>Customer</th><th>Task</th><th>Responsible</th><th></th></tr></thead>
+          <tbody id="rTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+<script>
+(() => {
+  const els = {
+    actName: document.getElementById("actName"),
+    actRate: document.getElementById("actRate"),
+    saveAct: document.getElementById("saveAct"),
+    actTable: document.getElementById("actTable"),
+
+    custName: document.getElementById("custName"),
+    saveCust: document.getElementById("saveCust"),
+    custTable: document.getElementById("custTable"),
+
+    rCustomer: document.getElementById("rCustomer"),
+    rTask: document.getElementById("rTask"),
+    rName: document.getElementById("rName"),
+    rSave: document.getElementById("rSave"),
+    rTable: document.getElementById("rTable"),
+  };
+
+  function fillResponsibilitySelectors(){
+    els.rCustomer.innerHTML = "";
+    TR.state.customers.forEach(c => {
+      const opt = document.createElement("option");
+      opt.value = c.id;
+      opt.textContent = c.name;
+      els.rCustomer.appendChild(opt);
+    });
+
+    els.rTask.innerHTML = "";
+    TR.state.activities
+      .filter(a => a.id !== "break")
+      .slice()
+      .sort((a,b)=> a.name.localeCompare(b.name))
+      .forEach(a => {
+        const opt = document.createElement("option");
+        opt.value = a.id;
+        opt.textContent = a.name;
+        els.rTask.appendChild(opt);
+      });
+  }
+
+  function renderActivities(){
+    els.actTable.innerHTML = "";
+    TR.state.activities
+      .filter(a => a.id !== "break")
+      .slice()
+      .sort((a,b)=> b.rate - a.rate)
+      .forEach(a => {
+        const tr = document.createElement("tr");
+        const del = document.createElement("button");
+        del.className = "smallBtn";
+        del.textContent = "Delete";
+        del.addEventListener("click", () => {
+          TR.state.activities = TR.state.activities.filter(x => x.id !== a.id);
+          TR.persistEdits();
+          renderAll();
+        });
+        tr.innerHTML = `<td>${a.name}</td><td>${a.rate}</td><td></td>`;
+        tr.children[2].appendChild(del);
+        els.actTable.appendChild(tr);
+      });
+  }
+
+  function renderCustomers(){
+    els.custTable.innerHTML = "";
+    TR.state.customers
+      .slice()
+      .sort((a,b)=> a.name.localeCompare(b.name))
+      .forEach(c => {
+        const tr = document.createElement("tr");
+        const del = document.createElement("button");
+        del.className = "smallBtn";
+        del.textContent = "Delete";
+        del.addEventListener("click", () => {
+          TR.state.customers = TR.state.customers.filter(x => x.id !== c.id);
+          // also remove responsibility mappings for that customer
+          Object.keys(TR.state.respMap).forEach(k => {
+            if(k.startsWith(c.id + "|")) delete TR.state.respMap[k];
+          });
+          TR.persistEdits();
+          renderAll();
+        });
+        tr.innerHTML = `<td>${c.name}</td><td></td>`;
+        tr.children[1].appendChild(del);
+        els.custTable.appendChild(tr);
+      });
+  }
+
+  function renderResponsibilities(){
+    els.rTable.innerHTML = "";
+
+    const rows = [];
+    TR.state.customers.forEach(c => {
+      TR.state.activities.filter(a => a.id !== "break").forEach(a => {
+        const key = TR.respKey(c.id, a.id);
+        const resp = TR.state.respMap[key] || "";
+        // only show pairs that have a responsible set (cleaner)
+        if(resp) rows.push({ customerId:c.id, taskId:a.id, resp });
+      });
+    });
+
+    rows
+      .sort((x,y)=> {
+        const cn = TR.customerName(x.customerId).localeCompare(TR.customerName(y.customerId));
+        if(cn !== 0) return cn;
+        return TR.taskName(x.taskId).localeCompare(TR.taskName(y.taskId));
+      })
+      .forEach(r => {
+        const tr = document.createElement("tr");
+        const del = document.createElement("button");
+        del.className = "smallBtn";
+        del.textContent = "Clear";
+        del.addEventListener("click", () => {
+          delete TR.state.respMap[TR.respKey(r.customerId, r.taskId)];
+          TR.persistEdits();
+          renderAll();
+        });
+
+        tr.innerHTML = `
+          <td>${TR.customerName(r.customerId)}</td>
+          <td>${TR.taskName(r.taskId)}</td>
+          <td>${r.resp}</td>
+          <td></td>
+        `;
+        tr.children[3].appendChild(del);
+        els.rTable.appendChild(tr);
+      });
+  }
+
+  function renderAll(){
+    renderActivities();
+    renderCustomers();
+    fillResponsibilitySelectors();
+    renderResponsibilities();
+  }
+
+  // Save activity
+  els.saveAct.addEventListener("click", () => {
+    const name = (els.actName.value || "").trim();
+    const rate = Math.max(0, Math.floor(Number(els.actRate.value || 0)));
+    if(!name) return;
+
+    const id = TR.slugify(name);
+    const existing = TR.state.activities.find(a => a.id === id);
+    if(existing){
+      existing.name = name;
+      existing.rate = rate;
+    }else{
+      TR.state.activities.unshift({ id, name, rate });
+    }
+    TR.persistEdits();
+    els.actName.value = "";
+    els.actRate.value = "";
+    renderAll();
+  });
+
+  // Save customer
+  els.saveCust.addEventListener("click", () => {
+    const name = (els.custName.value || "").trim();
+    if(!name) return;
+
+    const id = TR.slugify(name);
+    const existing = TR.state.customers.find(c => c.id === id);
+    if(existing){
+      existing.name = name;
+    }else{
+      TR.state.customers.push({ id, name });
+    }
+    TR.persistEdits();
+    els.custName.value = "";
+    renderAll();
+  });
+
+  // Save responsibility mapping
+  els.rSave.addEventListener("click", () => {
+    const customerId = els.rCustomer.value;
+    const taskId = els.rTask.value;
+    const resp = (els.rName.value || "").trim();
+    if(!customerId || !taskId) return;
+
+    const key = TR.respKey(customerId, taskId);
+    if(resp) TR.state.respMap[key] = resp;
+    else delete TR.state.respMap[key];
+
+    TR.persistEdits();
+    els.rName.value = "";
+    renderAll();
+  });
+
+  // Prefill responsibility form when changing selects
+  function syncRespField(){
+    const key = TR.respKey(els.rCustomer.value, els.rTask.value);
+    els.rName.value = TR.state.respMap[key] || "";
+  }
+  els.rCustomer.addEventListener("change", syncRespField);
+  els.rTask.addEventListener("change", syncRespField);
+
+  renderAll();
+  // pick sensible defaults
+  const rn = TR.slugify("RN Nordic");
+  if([...els.rCustomer.options].some(o=>o.value===rn)) els.rCustomer.value = rn;
+  syncRespField();
+})();
+</script>
+</body>
+</html>
