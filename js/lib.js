@@ -1,16 +1,16 @@
 const API = {
   async get(url) {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
   },
   async post(url, body) {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+    const r = await fetch(url, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body)
     });
-    if (!res.ok) throw new Error(await res.text());
-    return res.json();
+    if (!r.ok) throw new Error(await r.text());
+    return r.json();
   }
 };
