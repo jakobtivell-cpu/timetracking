@@ -11,7 +11,6 @@
     --text:#fff;
     --muted:rgba(255,255,255,.65);
     --panel:rgba(255,255,255,.06);
-    --panel2:rgba(255,255,255,.09);
     --stroke:rgba(255,255,255,.10);
     --peach:#f4a08b;
   }
@@ -198,6 +197,12 @@
 
 <script>
 (() => {
+  // If data.js didn't load for some reason, fail gracefully
+  if(!window.TR || !TR.state){
+    document.body.innerHTML = '<div style="color:white;padding:16px;font-family:system-ui">Missing data.js</div>';
+    return;
+  }
+
   const els = {
     customer: document.getElementById("customer"),
     period: document.getElementById("period"),
@@ -221,17 +226,21 @@
     breakdown.forEach(x => {
       const row = document.createElement("div");
       row.className = "barRow";
+
       const left = document.createElement("div");
       left.textContent = TR.taskName(x.taskId);
+
       const mid = document.createElement("div");
       mid.className = "bar";
       const fill = document.createElement("i");
       fill.style.width = `${Math.round((x.sek / max) * 100)}%`;
       mid.appendChild(fill);
+
       const right = document.createElement("div");
       right.style.textAlign = "right";
       right.style.fontVariantNumeric = "tabular-nums";
       right.textContent = `${Math.round(x.sek)}`;
+
       row.appendChild(left);
       row.appendChild(mid);
       row.appendChild(right);
@@ -239,7 +248,6 @@
     });
   }
 
-  // Simple donut chart (monochrome on black, still readable)
   function drawDonut(breakdown){
     const canvas = els.donut;
     const ctx = canvas.getContext("2d");
@@ -249,9 +257,8 @@
     const cx = canvas.width/2, cy = canvas.height/2;
     const rOuter = 80, rInner = 52;
 
-    // create subtle grayscale shades
     const shades = breakdown.map((_, i) => {
-      const v = 255 - Math.min(160, i * 22); // 255, 233, 211...
+      const v = 255 - Math.min(160, i * 22);
       return `rgba(${v},${v},${v},0.28)`;
     });
 
@@ -267,31 +274,30 @@
       start += ang;
     });
 
-    // punch hole
     ctx.beginPath();
     ctx.arc(cx, cy, rInner, 0, Math.PI*2);
     ctx.fillStyle = "#000";
     ctx.fill();
 
-    // center text
     ctx.fillStyle = "rgba(255,255,255,.9)";
     ctx.font = "900 14px ui-sans-serif, system-ui";
     ctx.textAlign = "center";
     ctx.fillText("Total", cx, cy - 4);
-    ctx.fillStyle = "rgba(255,255,255,.9)";
     ctx.font = "900 18px ui-sans-serif, system-ui";
     ctx.fillText(String(Math.round(total)), cx, cy + 18);
 
-    // legend
     els.legend.innerHTML = "";
     breakdown.slice(0,6).forEach((x,i) => {
       const item = document.createElement("div");
       item.className = "legendItem";
+
       const sw = document.createElement("div");
       sw.className = "swatch";
       sw.style.background = shades[i];
+
       const txt = document.createElement("div");
       txt.textContent = `${TR.taskName(x.taskId)} • ${Math.round(x.sek)} SEK`;
+
       item.appendChild(sw);
       item.appendChild(txt);
       els.legend.appendChild(item);
@@ -319,13 +325,12 @@
       return all.filter(e => TR.monthKey(e.start) === mk);
     }
 
-    // YTD
     const year = Number(els.year.value);
     const now = new Date();
     return all.filter(e => {
       const d = e.start;
       if(d.getFullYear() !== year) return false;
-      if(year === now.getFullYear()) return d <= now; // up to today
+      if(year === now.getFullYear()) return d <= now;
       return true;
     });
   }
@@ -352,7 +357,6 @@
   }
 
   function render(){
-    // show/hide selectors based on view
     const p = els.period.value;
     els.monthField.style.display = (p === "month") ? "" : "none";
     els.yearField.style.display = (p === "ytd") ? "" : "none";
@@ -365,11 +369,13 @@
     const breakdown = TR.taskBreakdown(entries);
     renderBars(breakdown);
     drawDonut(breakdown);
-
     renderLogs(entries);
 
+    // approvals stored separately for mock
     const key = periodKey();
-    const approvedAt = (TR.state.approvals && TR.state.approvals[key]) || null;
+    let approvals = {};
+    try { approvals = JSON.parse(localStorage.getItem("tr_mock_approvals_v1") || "{}"); } catch {}
+    const approvedAt = approvals[key] || null;
 
     els.approvalState.textContent = approvedAt ? `Approved: ${approvedAt}` : "Not approved";
     els.approve.textContent = approvedAt ? "Approved" : "Approve";
@@ -403,7 +409,6 @@
       els.year.appendChild(opt);
     });
 
-    // default: RN Nordic + 2026-01 if exists
     const rn = TR.slugify("RN Nordic");
     if([...els.customer.options].some(o => o.value === rn)) els.customer.value = rn;
     if([...els.month.options].some(o => o.value === "2026-01")) els.month.value = "2026-01";
@@ -417,27 +422,16 @@
 
   els.approve.addEventListener("click", () => {
     const key = periodKey();
-    if(TR.state.approvals && TR.state.approvals[key]) return;
-    if(!TR.state.approvals) TR.state.approvals = {};
+    let approvals = {};
+    try { approvals = JSON.parse(localStorage.getItem("tr_mock_approvals_v1") || "{}"); } catch {}
+    if(approvals[key]) return;
+
     const d = new Date();
     const stamp = `${TR.fmtDate(d)} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
-    TR.state.approvals[key] = stamp;
-    // approvals persistence fits the admin workflow later; store now for mock
-    localStorage.setItem("tr_mock_approvals_v1", JSON.stringify(TR.state.approvals));
+    approvals[key] = stamp;
+    localStorage.setItem("tr_mock_approvals_v1", JSON.stringify(approvals));
     render();
   });
-
-  // Load approvals if previously stored
-  try{
-    const raw = localStorage.getItem("tr_mock_approvals_v1");
-    if(raw){
-      TR.state.approvals = JSON.parse(raw);
-    }else{
-      TR.state.approvals = {};
-    }
-  }catch{
-    TR.state.approvals = {};
-  }
 
   fillSelectors();
   render();
