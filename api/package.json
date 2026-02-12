@@ -4,6 +4,6 @@
   "private": true,
   "type": "commonjs",
   "dependencies": {
-    "mssql": "^10.0.0"
+    "mssql": "^10.0.2"
   }
 }
