@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Time</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+
+  <link rel="manifest" href="/pwa/manifest.json" />
+  <meta name="theme-color" content="#000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <link rel="stylesheet" href="/css/styles.css" />
+
+  <script src="/js/lib.js" defer></script>
+  <script src="/js/mobile.js" defer></script>
+</head>
+
+<body class="page-mobile">
+  <main class="mobileShell">
+
+    <header class="mobileTop">
+      <button id="cancelBtn" class="iconBtn" aria-label="Cancel current timer">✕</button>
+
+      <div class="stealthClock" aria-hidden="true">
+        <svg class="clockSvg" viewBox="0 0 200 120">
+          <!-- Track (120° arc from 12 o'clock down to ~4 o'clock) -->
+          <path
+            id="clockTrack"
+            d="M 120 30 A 60 60 0 0 1 172 120"
+            fill="none"
+            stroke="rgba(255,255,255,.14)"
+            stroke-width="10"
+            stroke-linecap="round"
+          />
+
+          <!-- Progress -->
+          <path
+            id="clockProg"
+            d="M 120 30 A 60 60 0 0 1 172 120"
+            fill="none"
+            stroke="rgba(255,255,255,.55)"
+            stroke-width="10"
+            stroke-linecap="round"
+            stroke-dasharray="0 999"
+            stroke-dashoffset="0"
+          />
+
+          <!-- Minimal “hands” (soft white bars) -->
+          <g id="clockHands" transform="translate(120 90)">
+            <line
+              id="hourHand"
+              x1="0" y1="0" x2="0" y2="-46"
+              stroke="rgba(255,255,255,.80)"
+              stroke-width="7"
+              stroke-linecap="round"
+            />
+            <line
+              id="minHand"
+              x1="0" y1="0" x2="0" y2="-30"
+              stroke="rgba(255,255,255,.35)"
+              stroke-width="6"
+              stroke-linecap="round"
+            />
+          </g>
+        </svg>
+      </div>
+    </header>
+
+    <section class="mobileStatus">
+      <div id="activity" class="mobileActivity">—</div>
+      <div id="timer" class="mobileTimer">00:00:00</div>
+    </section>
+
+    <section id="tasks" class="mobileGrid" aria-label="Tasks"></section>
+
+    <footer class="mobileBottom">
+      <button id="pauseBtn" class="pauseBtn">Pause</button>
+    </footer>
+
+  </main>
+</body>
+</html>

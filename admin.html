@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin</title>
+
+  <link rel="stylesheet" href="/css/styles.css" />
+  <script src="/js/lib.js" defer></script>
+  <script src="/js/admin.js" defer></script>
+</head>
+
+<body class="page-shell">
+  <div class="container">
+
+    <div class="row">
+      <div class="card" style="flex:1">
+        <h2>Activities</h2>
+        <div class="fieldRow">
+          <div class="field"><label>Activity</label><input id="actName" placeholder="e.g. Forecastapp" /></div>
+          <div class="field"><label>SEK/h</label><input id="actRate" type="number" placeholder="1000" /></div>
+          <div class="field" style="flex:.6"><label>&nbsp;</label><button id="saveAct" class="btnInline peach">Save</button></div>
+        </div>
+        <table class="table">
+          <thead><tr><th>Activity</th><th style="text-align:right">SEK/h</th></tr></thead>
+          <tbody id="actTable"></tbody>
+        </table>
+      </div>
+
+      <div class="card" style="flex:1">
+        <h2>Customers</h2>
+        <div class="fieldRow">
+          <div class="field"><label>Customer</label><input id="custName" placeholder="e.g. RN Nordic" /></div>
+          <div class="field" style="flex:.6"><label>&nbsp;</label><button id="saveCust" class="btnInline peach">Save</button></div>
+        </div>
+        <table class="table">
+          <thead><tr><th>Customer</th></tr></thead>
+          <tbody id="custTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card" style="flex:1">
+        <h2>Responsibility</h2>
+        <div class="fieldRow">
+          <div class="field"><label>Customer</label><select id="rCustomer"></select></div>
+          <div class="field"><label>Task</label><select id="rTask"></select></div>
+          <div class="field"><label>Responsible</label><input id="rName" placeholder="e.g. Martin Fossum" /></div>
+          <div class="field" style="flex:.6"><label>&nbsp;</label><button id="rSave" class="btnInline peach">Save</button></div>
+        </div>
+
+        <table class="table">
+          <thead><tr><th>Customer</th><th>Task</th><th>Responsible</th></tr></thead>
+          <tbody id="rTable"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>

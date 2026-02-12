@@ -1,0 +1,121 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Customer</title>
+
+  <link rel="stylesheet" href="/css/styles.css" />
+  <script src="/js/lib.js" defer></script>
+  <script src="/js/customer.js" defer></script>
+</head>
+
+<body class="page-shell">
+  <div class="container">
+
+    <div class="row">
+      <div class="card" style="flex:1">
+        <h2>Customer</h2>
+        <div class="fieldRow">
+          <div class="field">
+            <label>Customer</label>
+            <select id="customer"></select>
+          </div>
+
+          <div class="field">
+            <label>View</label>
+            <select id="period">
+              <option value="month">Month</option>
+              <option value="ytd">YTD</option>
+              <option value="all">All time</option>
+            </select>
+          </div>
+
+          <div class="field" id="monthField">
+            <label>Month</label>
+            <select id="month"></select>
+          </div>
+
+          <div class="field" id="yearField" style="display:none;">
+            <label>Year</label>
+            <select id="year"></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Totals</h2>
+        <div class="row">
+          <div class="kpi"><small>Total hours</small><b id="totalHours">0</b></div>
+          <div class="kpi"><small>Total (SEK)</small><b id="totalSek">0</b></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>Approval</h2>
+        <button class="btnInline peach" id="approve">Approve</button>
+        <div id="approvalState" style="margin-top:8px;font-size:12px;color:var(--muted)">Not approved</div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card" style="flex:1">
+        <h2>Currently working on</h2>
+        <div id="runningList" class="runningList"></div>
+      </div>
+
+      <div class="card" style="flex:1">
+        <h2>Consultants</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Consultant</th>
+              <th style="text-align:right">Hours</th>
+              <th style="text-align:right">SEK</th>
+              <th>Running</th>
+              <th style="text-align:right" id="forecastHead">Forecast</th>
+            </tr>
+          </thead>
+          <tbody id="consultants"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card" style="flex:1">
+        <h2>Cost per task</h2>
+        <div id="bars" class="bars"></div>
+      </div>
+
+      <div class="card" style="flex:1">
+        <h2>Cost distribution</h2>
+        <div class="donutWrap">
+          <canvas id="donut" width="190" height="190"></canvas>
+          <div id="legend" class="legend"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="card" style="flex:1">
+        <h2>Logs</h2>
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>In</th>
+              <th>Out</th>
+              <th>Task</th>
+              <th>Responsible</th>
+              <th style="text-align:right">Hours</th>
+              <th style="text-align:right">SEK</th>
+            </tr>
+          </thead>
+          <tbody id="logs"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+</body>
+</html>
