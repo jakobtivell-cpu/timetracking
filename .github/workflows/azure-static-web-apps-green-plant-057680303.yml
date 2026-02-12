@@ -27,9 +27,9 @@ jobs:
           azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_GREEN_PLANT_057680303 }}
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
-          app_location: "timetracking"
-          api_location: "timetracking/api"
-          output_location: ""
+          app_location: "/"          # repo root (where index.html/mobile.html/etc live)
+          api_location: "api"        # repo root api folder
+          output_location: ""        # no build output (pure static)
 
   close_pull_request_job:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
