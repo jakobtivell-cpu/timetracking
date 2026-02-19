@@ -13,9 +13,11 @@ const STORAGE = {
 const CAP_HOURS = 8; // gauge caps at 8h (adjust if you work 12h days like a maniac)
 
 const els = {
+  // UI elements are intentionally optional; the mobile layout is a pure HTML/CSS shell.
+  // If an element is missing, we simply skip that feature (prevents runtime errors).
   cancelBtn: document.getElementById('cancelBtn'),
-  pauseBtn: document.getElementById('pauseBtn'),
-  tasks: document.getElementById('tasks'),
+  pauseBtn: document.getElementById('pauseBtn') || document.getElementById('pause'),
+  tasks: document.getElementById('grid') || document.getElementById('tasks'),
   activity: document.getElementById('activity'),
   timer: document.getElementById('timer'),
   clockProg: document.getElementById('clockProg'),
@@ -73,10 +75,11 @@ async function loadTasks(){
 }
 
 function renderTasks(){
+  if(!els.tasks) return;
   els.tasks.innerHTML='';
   state.tasks.forEach(t=>{
     const btn = document.createElement('button');
-    btn.className = 'taskBtn';
+    btn.className = 'btn';
     btn.type = 'button';
     btn.textContent = t.taskName;
     btn.dataset.taskId = String(t.taskId);
@@ -87,16 +90,20 @@ function renderTasks(){
 }
 
 function syncActiveTaskStyles(){
-  const activeTaskId = state.running?.mode === 'task' ? state.running.taskId : null;
-  [...els.tasks.children].forEach(btn=>{
-    const tid = Number(btn.dataset.taskId);
-    btn.classList.toggle('active', activeTaskId === tid);
-  });
+  if(els.tasks){
+    const activeTaskId = state.running?.mode === 'task' ? state.running.taskId : null;
+    [...els.tasks.children].forEach(btn=>{
+      const tid = Number(btn.dataset.taskId);
+      btn.classList.toggle('active', activeTaskId === tid);
+    });
+  }
+
+  if(els.pauseBtn) els.pauseBtn.classList.toggle('active', state.running?.mode === 'break');
 }
 
 function setStatus(taskName, seconds){
-  els.activity.textContent = taskName || '—';
-  els.timer.textContent = formatHMS(seconds || 0);
+  if(els.activity) els.activity.textContent = taskName || '—';
+  if(els.timer) els.timer.textContent = formatHMS(seconds || 0);
 }
 
 function nowMs(){ return Date.now(); }
@@ -263,6 +270,9 @@ async function refreshTodayBilledFromDb(force=false){
 }
 
 function updateClock(){
+  // Clock/gauge is optional (not present in the re-instated minimal UI).
+  if(!els.clockProg || !els.hourHand || !els.minHand) return;
+
   // Initialise length once
   if(state.clockLen === null){
     try{ state.clockLen = els.clockProg.getTotalLength(); }
@@ -325,8 +335,12 @@ async function boot(){
   syncActiveTaskStyles();
 
   // Wire UI
-  els.cancelBtn.addEventListener('click', () => cancelCurrent().catch(err=>console.error(err)));
-  els.pauseBtn.addEventListener('click', () => onPause().catch(err=>console.error(err)));
+  if(els.cancelBtn){
+    els.cancelBtn.addEventListener('click', () => cancelCurrent().catch(err=>console.error(err)));
+  }
+  if(els.pauseBtn){
+    els.pauseBtn.addEventListener('click', () => onPause().catch(err=>console.error(err)));
+  }
 
   // PWA worker (best-effort)
   if('serviceWorker' in navigator){
@@ -342,6 +356,6 @@ async function boot(){
 
 boot().catch(err=>{
   console.error(err);
-  els.activity.textContent = 'Setup needed';
-  els.timer.textContent = '—';
+  if(els.activity) els.activity.textContent = 'Setup needed';
+  if(els.timer) els.timer.textContent = '—';
 });
