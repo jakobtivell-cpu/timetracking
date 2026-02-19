@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Time</title>
+
+  <link rel="manifest" href="/pwa/manifest.json" />
+  <meta name="theme-color" content="#000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <link rel="stylesheet" href="/css/styles.css" />
+  <script src="/js/lib.js" defer></script>
+  <script src="/js/mobile.js" defer></script>
+</head>
+
+<body class="page-mobile">
+  <div class="phone">
+    <div class="top">
+      <div class="activity" id="activity">—</div>
+      <div class="timer" id="timer">00:00:00</div>
+    </div>
+
+    <div class="grid" id="grid" aria-label="Tasks"></div>
+
+    <div class="bottom">
+      <button class="pause" id="pauseBtn" type="button">Pause</button>
+    </div>
+
+    <div class="hint">Tap a task to switch + start. Tap Pause to switch to break.</div>
+  </div>
+</body>
+</html>
