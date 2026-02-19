@@ -13,11 +13,15 @@ The point: keep the surface area small so you can iterate in production without 
 ## Pages
 
 ### `mobile.html`
-Minimal “task buttons” tracker.
+Minimal “task buttons” tracker (UI matches the original mock design).
 - Tap a task ⇒ starts (or switches) timer
 - Tap **Pause** ⇒ stops the current task and enters a local break timer (not billed)
-- Tap **Cancel** ⇒ cancels the current running entry (deletes it if it’s in the DB)
-- Stealth clock/gauge shows **billed hours today** (billable tasks only)
+
+**Note:** The production JS still contains optional support for:
+- **Cancel** (cancelling/deleting a running DB entry)
+- A “stealth clock/gauge” for billed hours today
+
+…but those elements are **not shown in the reinstated minimal layout** unless they are explicitly present in the HTML.
 
 ### `customer.html`
 Customer reporting:
@@ -77,7 +81,6 @@ If that column doesn’t exist yet, the API will still work, but the “consulta
 
 ### Production hardening
 When you’re ready:
-- Add auth (SWA built-in auth) and store `UserId` instead of `ConsultantName`.
-- Add row-level security so customers only see their own data.
-- Add an invoice/approval table + workflow.
-
+- Add auth (SWA built-in auth) and enforce it on `/api/*`
+- Add audit logging for admin edits
+- Add rate-limits / abuse protection (SWA / Function settings)
