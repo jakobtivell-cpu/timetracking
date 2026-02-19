@@ -157,92 +157,102 @@ canvas{ background:transparent; border-radius:14px; }
 
 /* ===== Mobile page ===== */
 
-body.page-mobile{ overflow:hidden; }
+/*
+  Mobile design (re-instated)
+  - Matches the original no-frills mock layout
+  - Keeps the production/DB-backed behaviour in /js/mobile.js
+*/
 
-.mobileShell{
-  width:100vw;
+body.page-mobile{
   min-height:100vh;
-  background:#000;
-  padding-top: calc(14px + env(safe-area-inset-top));
-  padding-right: calc(14px + env(safe-area-inset-right));
+  display:grid;
+  place-items:center;
+  overflow:auto;
+}
+
+.phone{
+  width:390px;
+  max-width:96vw;
+  padding-top: calc(18px + env(safe-area-inset-top));
+  padding-right: calc(16px + env(safe-area-inset-right));
   padding-bottom: calc(18px + env(safe-area-inset-bottom));
-  padding-left: calc(14px + env(safe-area-inset-left));
+  padding-left: calc(16px + env(safe-area-inset-left));
+  background:#000;
+}
+
+.top{
+  padding:6px 2px 14px;
   display:flex;
   flex-direction:column;
+  gap:6px;
 }
 
-.mobileTop{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:12px;
-  margin:2px 0 10px;
-}
-
-.iconBtn{
-  width:54px;
-  height:54px;
-  border-radius:18px;
-  border:1px solid rgba(255,255,255,.10);
-  background:rgba(255,255,255,.06);
-  color:rgba(255,255,255,.92);
-  font-size:30px;
+.activity{
+  font-size:18px;
   font-weight:900;
-  line-height:1;
-  cursor:pointer;
-  transition: transform .06s ease, background .18s ease;
+  letter-spacing:.2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  min-height:24px;
 }
 
-.iconBtn:active{ transform:scale(.99); }
+.timer{
+  font-variant-numeric: tabular-nums;
+  font-size:34px;
+  font-weight:900;
+  letter-spacing:.5px;
+  line-height:1.05;
+}
 
-.stealthClock{ width:170px; height:120px; display:flex; align-items:center; justify-content:center; }
-.clockSvg{ width:170px; height:120px; display:block; }
-
-.mobileStatus{ padding:2px 2px 12px; display:flex; flex-direction:column; gap:6px; }
-.mobileActivity{ font-size:20px; font-weight:900; letter-spacing:.2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-height:26px; }
-.mobileTimer{ font-variant-numeric: tabular-nums; font-size:54px; font-weight:900; letter-spacing:.5px; line-height:1.05; }
-
-.mobileGrid{
+.grid{
   display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:16px;
-  padding:6px 2px 0;
-  flex:1;
-  align-content:start;
+  grid-template-columns: 1fr 1fr;
+  gap:12px;
 }
 
-.taskBtn{
+.btn{
+  appearance:none;
   border:0;
-  border-radius:28px;
-  background:var(--panel);
+  border-radius:22px;
+  background:rgba(255,255,255,.08);
   color:var(--text);
-  padding:22px 18px;
-  min-height:108px;
+  padding:18px 16px;
+  min-height:86px;
   text-align:left;
-  font-size:22px;
+  font-size:18px;
   font-weight:900;
+  letter-spacing:.2px;
   cursor:pointer;
   transition: transform .06s ease, background .18s ease;
-  display:flex;
-  align-items:flex-end;
 }
 
-.taskBtn:active{ transform:scale(.99); }
-.taskBtn.active{ background:var(--active); }
+.btn:active{ transform:scale(.99); }
+.btn.active{ background:rgba(255,255,255,.18); }
 
-.mobileBottom{ margin-top:14px; }
-.pauseBtn{
+.bottom{ margin-top:14px; display:flex; }
+
+.pause{
   width:100%;
   border:0;
-  border-radius:36px;
+  border-radius:28px;
   background:var(--peach);
   color:#000;
-  padding:22px 18px;
-  min-height:86px;
-  font-size:24px;
+  padding:18px 16px;
+  min-height:64px;
+  font-size:18px;
   font-weight:900;
+  letter-spacing:.2px;
   cursor:pointer;
   transition: transform .06s ease, background .18s ease;
 }
-.pauseBtn:active{ transform:scale(.99); }
-.pauseBtn.active{ background:var(--peach2); }
+
+.pause:active{ transform:scale(.99); }
+.pause.active{ background:var(--peach2); }
+
+.hint{
+  margin-top:10px;
+  color:var(--muted);
+  font-size:12px;
+  padding:0 2px;
+}
