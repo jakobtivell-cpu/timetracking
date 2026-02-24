@@ -1,11 +1,3 @@
-/* Customer view
-   - Visualises logs + cost breakdown
-   - Adds "Currently working on" + per-consultant overview
-
-   This is still intentionally "simple static web + API".
-   No frameworks. No build step. No surprises.
-*/
-
 const els = {
   customer: document.getElementById('customer'),
   period: document.getElementById('period'),
@@ -87,19 +79,28 @@ function isCurrentMonthSelected(){
   return els.month.value === monthKey(new Date());
 }
 
+function clearBanner(){
+  if(!els.apiError) return;
+  els.apiError.style.display = 'none';
+  els.apiError.textContent = '';
+}
+
+function showBanner(text){
+  if(!els.apiError) return;
+  els.apiError.style.display = '';
+  els.apiError.textContent = text;
+}
+
 function render(){
   const ended = state.entries.filter(e=>!!e.endTimeUtc);
 
-  // Totals
   const totals = calcTotals(ended);
   els.totalHours.textContent = totals.hours.toFixed(2);
   els.totalSek.textContent = Math.round(totals.sek).toString();
 
-  // Period UI
   els.monthField.style.display = els.period.value === 'month' ? '' : 'none';
   els.yearField.style.display = els.period.value === 'ytd' ? '' : 'none';
 
-  // Forecast column only makes sense for "current month"
   els.forecastHead.style.display = isCurrentMonthSelected() ? '' : 'none';
 
   renderBars(ended);
@@ -108,7 +109,6 @@ function render(){
   renderRunning(state.running);
   renderConsultants(ended, state.running);
 
-  // Approval state (local only for now)
   const approved = localStorage.getItem(approvalStorageKey()) === '1';
   setApprovalState(approved);
 }
@@ -276,6 +276,8 @@ function renderConsultants(entries, running){
 }
 
 async function refresh(){
+  clearBanner();
+
   const cid = Number(els.customer.value);
   if(!cid) return;
 
@@ -295,7 +297,6 @@ async function refresh(){
     const y = Number(els.year.value);
     const fromLocal = new Date(y,0,1,0,0,0,0);
 
-    // YTD means "up to end of today" for current year, full year otherwise.
     const now = new Date();
     const toLocal = (y === now.getFullYear()) ? addDays(startOfLocalDay(now), 1) : new Date(y+1,0,1,0,0,0,0);
 
@@ -307,28 +308,26 @@ async function refresh(){
   if(fromIso) q.set('from', fromIso);
   if(toIso) q.set('to', toIso);
 
-  // Fetch completed+running in range (we'll split client-side)
   state.entries = await API.get(`/api/timeentries?${q.toString()}`);
-
-  // Fetch running right now (ignores date range)
   state.running = await API.get(`/api/timeentries?customerId=${encodeURIComponent(cid)}&running=1`);
 
   render();
 }
 
 async function boot(){
+  clearBanner();
+
   state.customers = await API.get('/api/customers');
+
   if(!Array.isArray(state.customers) || !state.customers.length){
     throw new Error('No customers returned from API (/api/customers).');
   }
 
-  // Populate customer selector
   els.customer.innerHTML='';
   state.customers.forEach(c=>{
     els.customer.append(new Option(c.customerName, c.customerId));
   });
 
-  // Populate month/year
   els.month.innerHTML='';
   els.year.innerHTML='';
 
@@ -343,47 +342,42 @@ async function boot(){
     els.year.append(new Option(String(y), String(y)));
   }
 
-  // Defaults
   els.customer.value = String(state.customers[0]?.customerId || '');
   els.period.value = 'month';
   els.month.value = monthKey(now);
   els.year.value = String(now.getFullYear());
 
-  // Wire events
   ['customer','period','month','year'].forEach(id=>{
     els[id].addEventListener('change', refresh);
   });
 
-  els.period.addEventListener('change', ()=>{
-    // Force re-render for fields + forecast column visibility
-    render();
-  });
+  els.period.addEventListener('change', ()=>{ render(); });
 
   els.approve.addEventListener('click', ()=>{
-    const k = approvalStorageKey();
-    localStorage.setItem(k, '1');
+    localStorage.setItem(approvalStorageKey(), '1');
     setApprovalState(true);
   });
 
   await refresh();
 
-  // Live-ish updates for running timers
-  setInterval(()=>{
-    refresh().catch(()=>{});
-  }, 30_000);
+  setInterval(()=>{ refresh().catch(()=>{}); }, 30_000);
 }
 
 boot().catch(err=>{
   console.error(err);
 
-  // Surface a helpful error in the UI (common when the Functions API runs on a different port)
-  if(els.apiError){
-    const base = (typeof getApiBase === 'function') ? getApiBase() : '';
-    const hint = base
-      ? `Using api-base: ${base}`
-      : `Tip: if your API is running on another host/port, add <meta name="api-base" content="http://localhost:7071"> to customer.html (or set localStorage.tt_api_base).`;
-    els.apiError.style.display = '';
-    els.apiError.textContent = `Failed to load data. ${hint}`;
+  // Show actionable diagnostics
+  if(err && err.name === 'ApiHttpError'){
+    const body = (err.bodyText || '').trim();
+    const extra =
+      body ? ` Response: ${body}` :
+      ` Response: (empty)`;
+
+    showBanner(`Failed to load data from API. ${err.url} -> HTTP ${err.status}.${extra}
+
+If you’re on Azure Static Web Apps: this usually means the Functions API can’t connect to SQL (missing SQL_* settings or SQL firewall).`);
+  } else {
+    showBanner(`Failed to load data. ${err?.message || String(err)}`);
   }
 
   els.totalHours.textContent = '—';
