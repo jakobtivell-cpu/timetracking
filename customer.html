@@ -3,6 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <!-- Optional: set when API runs on another host/port (e.g. http://localhost:7071) -->
+  <meta name="api-base" content="" />
   <title>Customer</title>
 
   <link rel="stylesheet" href="/css/styles.css" />
@@ -12,6 +14,8 @@
 
 <body class="page-shell">
   <div class="container">
+
+    <div class="card" id="apiError" style="display:none; border:1px solid rgba(255,120,120,.35); background: rgba(255,120,120,.08); color: #ffd0d0; font-weight:900; font-size:12px; padding:10px; margin-bottom:12px;"></div>
 
     <div class="row">
       <div class="card" style="flex:1">
@@ -73,7 +77,7 @@
               <th style="text-align:right">Hours</th>
               <th style="text-align:right">SEK</th>
               <th>Running</th>
-              <th style="text-align:right" id="forecastHead">Forecast</th>
+              <th id="forecastHead" style="text-align:right">Forecast</th>
             </tr>
           </thead>
           <tbody id="consultants"></tbody>
@@ -83,15 +87,15 @@
 
     <div class="row">
       <div class="card" style="flex:1">
-        <h2>Cost per task</h2>
-        <div id="bars" class="bars"></div>
-      </div>
-
-      <div class="card" style="flex:1">
-        <h2>Cost distribution</h2>
-        <div class="donutWrap">
-          <canvas id="donut" width="190" height="190"></canvas>
-          <div id="legend" class="legend"></div>
+        <h2>Cost breakdown</h2>
+        <div class="row" style="align-items:flex-start; gap:16px">
+          <div style="flex:1">
+            <canvas id="donut" width="240" height="240" style="max-width:240px"></canvas>
+            <div id="legend" class="legend"></div>
+          </div>
+          <div style="flex:2">
+            <div id="bars" class="bars"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -103,8 +107,8 @@
           <thead>
             <tr>
               <th>Date</th>
-              <th>In</th>
-              <th>Out</th>
+              <th>Start</th>
+              <th>End</th>
               <th>Task</th>
               <th>Responsible</th>
               <th style="text-align:right">Hours</th>
