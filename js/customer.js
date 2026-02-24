@@ -23,7 +23,8 @@ const els = {
   consultants: document.getElementById('consultants'),
   forecastHead: document.getElementById('forecastHead'),
   approve: document.getElementById('approve'),
-  approvalState: document.getElementById('approvalState')
+  approvalState: document.getElementById('approvalState'),
+  apiError: document.getElementById('apiError')
 };
 
 let state = {
@@ -317,6 +318,9 @@ async function refresh(){
 
 async function boot(){
   state.customers = await API.get('/api/customers');
+  if(!Array.isArray(state.customers) || !state.customers.length){
+    throw new Error('No customers returned from API (/api/customers).');
+  }
 
   // Populate customer selector
   els.customer.innerHTML='';
@@ -371,6 +375,17 @@ async function boot(){
 
 boot().catch(err=>{
   console.error(err);
+
+  // Surface a helpful error in the UI (common when the Functions API runs on a different port)
+  if(els.apiError){
+    const base = (typeof getApiBase === 'function') ? getApiBase() : '';
+    const hint = base
+      ? `Using api-base: ${base}`
+      : `Tip: if your API is running on another host/port, add <meta name="api-base" content="http://localhost:7071"> to customer.html (or set localStorage.tt_api_base).`;
+    els.apiError.style.display = '';
+    els.apiError.textContent = `Failed to load data. ${hint}`;
+  }
+
   els.totalHours.textContent = '—';
   els.totalSek.textContent = '—';
 });
