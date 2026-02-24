@@ -190,7 +190,11 @@ module.exports = async function (context, req) {
     context.res = {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: { error: 'Failed to load time entries' }
+      body: {
+        error: 'Failed to load time entries',
+        code: err.code || 'UNKNOWN',
+        details: err.message || String(err)
+      }
     };
   }
 };
