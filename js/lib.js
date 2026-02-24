@@ -1,13 +1,5 @@
-/* Shared browser utilities (keep this file dependency-free and tiny-ish). */
+/* Shared browser utilities */
 
-/**
- * API base support
- *  - By default, requests go to the current origin (same host/port).
- *  - If you serve the HTML from a different dev server than the Functions API,
- *    set either:
- *      1) <meta name="api-base" content="http://localhost:7071">
- *      2) localStorage.setItem('tt_api_base', 'http://localhost:7071')
- */
 function getApiBase(){
   const meta = document.querySelector('meta[name="api-base"]')?.getAttribute('content')?.trim();
   return meta || localStorage.getItem('tt_api_base') || '';
@@ -15,16 +7,28 @@ function getApiBase(){
 
 function apiUrl(path){
   if(!path) return path;
-  // Absolute URL? Leave as-is.
   if(/^https?:\/\/+/i.test(path)) return path;
 
   const base = getApiBase();
   if(!base) return path;
 
   const b = base.replace(/\/$/, '');
-  // Ensure path starts with /
   const p = path.startsWith('/') ? path : `/${path}`;
   return `${b}${p}`;
+}
+
+class ApiHttpError extends Error {
+  constructor(message, { url, status, bodyText } = {}) {
+    super(message);
+    this.name = 'ApiHttpError';
+    this.url = url;
+    this.status = status;
+    this.bodyText = bodyText;
+  }
+}
+
+async function readBodyTextSafe(r){
+  try { return await r.text(); } catch { return ''; }
 }
 
 const API = {
@@ -32,8 +36,8 @@ const API = {
     const finalUrl = apiUrl(url);
     const r = await fetch(finalUrl, { headers: { 'Accept': 'application/json' } });
     if(!r.ok){
-      const t = await r.text();
-      throw new Error(t || `GET ${finalUrl} failed`);
+      const t = await readBodyTextSafe(r);
+      throw new ApiHttpError(`GET failed (${r.status})`, { url: finalUrl, status: r.status, bodyText: t });
     }
     return r.json();
   },
@@ -45,8 +49,8 @@ const API = {
       body: JSON.stringify(body || {})
     });
     if(!r.ok){
-      const t = await r.text();
-      throw new Error(t || `POST ${finalUrl} failed`);
+      const t = await readBodyTextSafe(r);
+      throw new ApiHttpError(`POST failed (${r.status})`, { url: finalUrl, status: r.status, bodyText: t });
     }
     return r.json();
   }
@@ -95,7 +99,6 @@ function daysInMonth(year, monthIndex0){
 }
 
 function drawDonut(canvas, items){
-  // items: [{label, value}]
   const ctx = canvas.getContext('2d');
   const w = canvas.width;
   const h = canvas.height;
@@ -103,7 +106,6 @@ function drawDonut(canvas, items){
 
   const total = items.reduce((a,x)=>a + (x.value||0), 0);
   if(total <= 0){
-    // Empty ring
     ctx.beginPath();
     ctx.arc(w/2, h/2, Math.min(w,h)/2 - 6, 0, Math.PI*2);
     ctx.lineWidth = 12;
@@ -119,7 +121,6 @@ function drawDonut(canvas, items){
     const ang = (val/total) * Math.PI*2;
     const end = start + ang;
 
-    // Vary alpha for slices.
     const alpha = 0.18 + (idx % 6) * 0.08;
 
     ctx.beginPath();
@@ -132,15 +133,12 @@ function drawDonut(canvas, items){
     start = end;
   });
 
-  // Punch hole
   ctx.beginPath();
   ctx.arc(w/2, h/2, Math.min(w,h)/2 - 18, 0, Math.PI*2);
   ctx.fillStyle = 'rgba(0,0,0,0.50)';
   ctx.fill();
 }
 
-// PWA (optional): register service worker if available.
-// This is what enables "Add to Home Screen" + standalone mode.
 if('serviceWorker' in navigator){
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/pwa/sw.js').catch(()=>{});
