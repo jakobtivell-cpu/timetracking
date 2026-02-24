@@ -23,10 +23,16 @@ module.exports = async function (context, req) {
     };
   } catch (err) {
     context.log(err);
+
+    // Safe-ish diagnostics: do not leak secrets, but do show what failed.
     context.res = {
       status: 500,
       headers: { 'Content-Type': 'application/json' },
-      body: { error: 'Failed to load customers' }
+      body: {
+        error: 'Failed to load customers',
+        code: err.code || 'UNKNOWN',
+        details: err.message || String(err)
+      }
     };
   }
 };
