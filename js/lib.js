@@ -1,23 +1,52 @@
 /* Shared browser utilities (keep this file dependency-free and tiny-ish). */
 
+/**
+ * API base support
+ *  - By default, requests go to the current origin (same host/port).
+ *  - If you serve the HTML from a different dev server than the Functions API,
+ *    set either:
+ *      1) <meta name="api-base" content="http://localhost:7071">
+ *      2) localStorage.setItem('tt_api_base', 'http://localhost:7071')
+ */
+function getApiBase(){
+  const meta = document.querySelector('meta[name="api-base"]')?.getAttribute('content')?.trim();
+  return meta || localStorage.getItem('tt_api_base') || '';
+}
+
+function apiUrl(path){
+  if(!path) return path;
+  // Absolute URL? Leave as-is.
+  if(/^https?:\/\/+/i.test(path)) return path;
+
+  const base = getApiBase();
+  if(!base) return path;
+
+  const b = base.replace(/\/$/, '');
+  // Ensure path starts with /
+  const p = path.startsWith('/') ? path : `/${path}`;
+  return `${b}${p}`;
+}
+
 const API = {
   async get(url){
-    const r = await fetch(url, { headers: { 'Accept': 'application/json' } });
+    const finalUrl = apiUrl(url);
+    const r = await fetch(finalUrl, { headers: { 'Accept': 'application/json' } });
     if(!r.ok){
       const t = await r.text();
-      throw new Error(t || `GET ${url} failed`);
+      throw new Error(t || `GET ${finalUrl} failed`);
     }
     return r.json();
   },
   async post(url, body){
-    const r = await fetch(url,{
+    const finalUrl = apiUrl(url);
+    const r = await fetch(finalUrl,{
       method:'POST',
       headers:{'Content-Type':'application/json','Accept':'application/json'},
       body: JSON.stringify(body || {})
     });
     if(!r.ok){
       const t = await r.text();
-      throw new Error(t || `POST ${url} failed`);
+      throw new Error(t || `POST ${finalUrl} failed`);
     }
     return r.json();
   }
@@ -73,36 +102,41 @@ function drawDonut(canvas, items){
   ctx.clearRect(0,0,w,h);
 
   const total = items.reduce((a,x)=>a + (x.value||0), 0);
-  if(total <= 0) return;
-
-  const cx = w/2;
-  const cy = h/2;
-  const outer = Math.min(w,h)/2 - 6;
-  const inner = outer * 0.64;
-
-  let a = -Math.PI/2;
-  items.forEach((it, idx)=>{
-    const frac = (it.value||0)/total;
-    const b = a + frac*2*Math.PI;
-
-    // Use a simple brightness variation so slices are distinguishable (no custom colors).
-    const alpha = 0.18 + (idx % 6) * 0.08;
+  if(total <= 0){
+    // Empty ring
     ctx.beginPath();
-    ctx.arc(cx, cy, outer, a, b);
-    ctx.arc(cx, cy, inner, b, a, true);
+    ctx.arc(w/2, h/2, Math.min(w,h)/2 - 6, 0, Math.PI*2);
+    ctx.lineWidth = 12;
+    ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+    ctx.stroke();
+    return;
+  }
+
+  let start = -Math.PI/2;
+  items.forEach((it, idx)=>{
+    const val = Math.max(0, Number(it.value||0));
+    if(val <= 0) return;
+    const ang = (val/total) * Math.PI*2;
+    const end = start + ang;
+
+    // Vary alpha for slices.
+    const alpha = 0.18 + (idx % 6) * 0.08;
+
+    ctx.beginPath();
+    ctx.moveTo(w/2, h/2);
+    ctx.arc(w/2, h/2, Math.min(w,h)/2 - 2, start, end);
     ctx.closePath();
     ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
     ctx.fill();
 
-    a = b;
+    start = end;
   });
 
-  // hole edge
+  // Punch hole
   ctx.beginPath();
-  ctx.arc(cx, cy, inner, 0, 2*Math.PI);
-  ctx.strokeStyle = 'rgba(255,255,255,.10)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  ctx.arc(w/2, h/2, Math.min(w,h)/2 - 18, 0, Math.PI*2);
+  ctx.fillStyle = 'rgba(0,0,0,0.50)';
+  ctx.fill();
 }
 
 // PWA (optional): register service worker if available.
