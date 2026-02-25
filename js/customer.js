@@ -70,10 +70,7 @@ function showBanner(text){
 }
 
 /**
- * IMPORTANT:
- * Some DB rows (and the current stop SQL) can produce DurationMinutes = 0 for <1 minute entries.
- * Also older sample data may not have DurationMinutes populated.
- * So we compute duration from timestamps when needed.
+ * If DurationMinutes is 0 (e.g. 15s entry) or missing, compute from timestamps.
  */
 function getDurationHours(e){
   const mins = Number(e.durationMinutes);
@@ -87,7 +84,6 @@ function getDurationHours(e){
     }
   }
 
-  // running rows sometimes include seconds-so-far (if you ever reuse it)
   const secsSoFar = Number(e.durationSecondsSoFar);
   if(Number.isFinite(secsSoFar) && secsSoFar > 0) return secsSoFar / 3600;
 
@@ -339,6 +335,20 @@ async function refresh(){
   render();
 }
 
+function pickLatestMonthWithData(allEntries){
+  // Choose latest StartTimeUtc month with ended entries (so you land on Jan if Feb only has tiny test)
+  const ended = (allEntries || []).filter(e => e && e.startTimeUtc && e.endTimeUtc);
+  if(!ended.length) return null;
+
+  let max = null;
+  for(const e of ended){
+    const d = new Date(e.startTimeUtc);
+    if(isNaN(d)) continue;
+    if(!max || d > max) max = d;
+  }
+  return max ? monthKey(max) : null;
+}
+
 async function boot(){
   clearBanner();
 
@@ -352,25 +362,39 @@ async function boot(){
     els.customer.append(new Option(c.customerName, c.customerId));
   });
 
-  // ACTION 1: show more months so sample data is selectable (last 60 months)
+  // months/years
   els.month.innerHTML='';
   els.year.innerHTML='';
 
   const now = new Date();
-  for(let i=0;i<60;i++){
+  for(let i=0;i<24;i++){
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
     const mk = monthKey(d);
     els.month.append(new Option(mk, mk));
   }
 
-  for(let y=now.getFullYear(); y>=now.getFullYear()-10; y--){
+  for(let y=now.getFullYear(); y>=now.getFullYear()-6; y--){
     els.year.append(new Option(String(y), String(y)));
   }
 
+  // Defaults
   els.customer.value = String(state.customers[0]?.customerId || '');
   els.period.value = 'month';
   els.month.value = monthKey(now);
   els.year.value = String(now.getFullYear());
+
+  // ACTION: auto-pick month that actually has data (uses all-time fetch once)
+  try{
+    const cid = Number(els.customer.value);
+    const all = await API.get(`/api/timeentries?customerId=${encodeURIComponent(cid)}`);
+    const mk = pickLatestMonthWithData(all);
+    if(mk){
+      const hasOpt = Array.from(els.month.options).some(o => o.value === mk);
+      if(hasOpt) els.month.value = mk;
+    }
+  }catch{
+    // ignore, page still works
+  }
 
   ['customer','period','month','year'].forEach(id=>{
     els[id].addEventListener('change', refresh);
