@@ -17,7 +17,9 @@ const els = {
   rTask: document.getElementById('rTask'),
   rName: document.getElementById('rName'),
   rSave: document.getElementById('rSave'),
-  rTable: document.getElementById('rTable')
+  rTable: document.getElementById('rTable'),
+
+  apiError: document.getElementById('apiError')
 };
 
 let state = {
@@ -26,86 +28,247 @@ let state = {
   responsibilities: []
 };
 
+function clearBanner(){
+  if(!els.apiError) return;
+  els.apiError.style.display = 'none';
+  els.apiError.textContent = '';
+}
+
+function showBanner(text){
+  if(!els.apiError) return;
+  els.apiError.style.display = 'block';
+  els.apiError.textContent = text;
+}
+
+function normalizeTask(t){
+  if(!t || typeof t !== 'object') return null;
+  // Support both camelCase and PascalCase API shapes
+  const taskId = Number(t.taskId ?? t.TaskId ?? t.id ?? t.Id);
+  const taskName = (t.taskName ?? t.TaskName ?? t.name ?? t.Name ?? '').toString();
+  const defaultRatePerHour = Number(t.defaultRatePerHour ?? t.DefaultRatePerHour ?? t.rate ?? t.Rate ?? 0);
+  if(!taskName) return null;
+  return { taskId: Number.isFinite(taskId) ? taskId : undefined, taskName, defaultRatePerHour };
+}
+
+function normalizeCustomer(c){
+  if(!c || typeof c !== 'object') return null;
+  const customerId = Number(c.customerId ?? c.CustomerId ?? c.id ?? c.Id);
+  const customerName = (c.customerName ?? c.CustomerName ?? c.name ?? c.Name ?? '').toString();
+  if(!customerName) return null;
+  return { customerId: Number.isFinite(customerId) ? customerId : undefined, customerName };
+}
+
+function normalizeResponsibility(r){
+  if(!r || typeof r !== 'object') return null;
+  const customerName = (r.customerName ?? r.CustomerName ?? '').toString();
+  const taskName = (r.taskName ?? r.TaskName ?? '').toString();
+  const responsibleName = (r.responsibleName ?? r.ResponsibleName ?? r.responsible ?? r.Responsible ?? '').toString();
+  if(!customerName || !taskName) return null;
+  return { customerName, taskName, responsibleName };
+}
+
 function clearTables(){
-  els.actTable.innerHTML='';
-  els.custTable.innerHTML='';
-  els.rTable.innerHTML='';
-  els.rCustomer.innerHTML='';
-  els.rTask.innerHTML='';
+  els.actTable.innerHTML = '';
+  els.custTable.innerHTML = '';
+  els.rTable.innerHTML = '';
+
+  // Dropdowns
+  els.rCustomer.innerHTML = '';
+  els.rTask.innerHTML = '';
+
+  // Add placeholders so the UI is clearly populated
+  els.rCustomer.append(new Option('Select customer…', ''));
+  els.rTask.append(new Option('Select task…', ''));
 }
 
 function render(){
   clearTables();
 
+  // Activities / Tasks
   state.tasks.forEach(t=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${t.taskName}</td><td style="text-align:right">${Number(t.defaultRatePerHour||0)}</td>`;
+    tr.innerHTML = `
+      <td>${escapeHtml(t.taskName)}</td>
+      <td style="text-align:right">${Number.isFinite(Number(t.defaultRatePerHour)) ? Number(t.defaultRatePerHour) : 0}</td>
+    `;
     els.actTable.appendChild(tr);
   });
 
+  // Customers + Responsibility dropdown
   state.customers.forEach(c=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${c.customerName}</td>`;
+    tr.innerHTML = `<td>${escapeHtml(c.customerName)}</td>`;
     els.custTable.appendChild(tr);
-    els.rCustomer.append(new Option(c.customerName, c.customerId));
+
+    if(c.customerId){
+      els.rCustomer.append(new Option(c.customerName, String(c.customerId)));
+    }
   });
 
+  // Tasks dropdown
   state.tasks.forEach(t=>{
-    els.rTask.append(new Option(t.taskName, t.taskId));
+    if(t.taskId){
+      els.rTask.append(new Option(t.taskName, String(t.taskId)));
+    }
   });
 
+  // Responsibility table
   state.responsibilities.forEach(r=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.customerName}</td><td>${r.taskName}</td><td>${r.responsibleName || ''}</td>`;
+    tr.innerHTML = `
+      <td>${escapeHtml(r.customerName)}</td>
+      <td>${escapeHtml(r.taskName)}</td>
+      <td>${escapeHtml(r.responsibleName || '')}</td>
+    `;
     els.rTable.appendChild(tr);
   });
 }
 
+// Small helper to avoid accidental HTML injection in admin tables.
+function escapeHtml(s){
+  return String(s ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#39;");
+}
+
+async function safeGet(url){
+  try{
+    return await API.get(url);
+  }catch(err){
+    console.error(err);
+    // Try a couple of common variations (case / leading slash) in case of route naming mismatch.
+    const variants = [];
+    if(typeof url === 'string'){
+      const u = url.startsWith('/') ? url.slice(1) : `/${url}`;
+      variants.push(u);
+      variants.push(url.toLowerCase());
+      variants.push(u.toLowerCase());
+    }
+
+    for(const v of variants){
+      try{
+        return await API.get(v);
+      }catch(e){
+        console.error(e);
+      }
+    }
+    throw err;
+  }
+}
+
 async function load(){
-  const [tasks, customers, responsibilities] = await Promise.all([
-    API.get('/api/tasks'),
-    API.get('/api/customers'),
-    API.get('/api/admin/responsibilities')
-  ]);
+  clearBanner();
+
+  // Load each dataset independently so one failure doesn't blank the whole page.
+  let tasks = [];
+  let customers = [];
+  let responsibilities = [];
+
+  const errors = [];
+
+  try{
+    const raw = await safeGet('/api/tasks');
+    tasks = (Array.isArray(raw) ? raw : raw?.tasks || raw?.Tasks || []).map(normalizeTask).filter(Boolean);
+  }catch(err){
+    errors.push(`Tasks: ${err?.message || err}`);
+  }
+
+  try{
+    const raw = await safeGet('/api/customers');
+    customers = (Array.isArray(raw) ? raw : raw?.customers || raw?.Customers || []).map(normalizeCustomer).filter(Boolean);
+  }catch(err){
+    errors.push(`Customers: ${err?.message || err}`);
+  }
+
+  try{
+    const raw = await safeGet('/api/admin/responsibilities');
+    responsibilities = (Array.isArray(raw) ? raw : raw?.responsibilities || raw?.Responsibilities || []).map(normalizeResponsibility).filter(Boolean);
+  }catch(err){
+    errors.push(`Responsibilities: ${err?.message || err}`);
+  }
 
   state.tasks = tasks;
   state.customers = customers;
   state.responsibilities = responsibilities;
 
   render();
+
+  if(errors.length){
+    showBanner(
+      'Some data could not be loaded from the API. ' +
+      'Open DevTools → Console/Network for details. ' +
+      errors.join(' | ')
+    );
+  }
 }
 
 els.saveAct.addEventListener('click', async ()=>{
+  clearBanner();
+
   const name = (els.actName.value || '').trim();
   const rate = Number(els.actRate.value);
-  if(!name) return;
 
-  await API.post('/api/admin/task', { name, rate });
-  els.actName.value='';
-  els.actRate.value='';
-  await load();
+  if(!name){
+    return showBanner('Activity name is required.');
+  }
+  if(!Number.isFinite(rate) || rate < 0){
+    return showBanner('SEK/h must be a non-negative number.');
+  }
+
+  try{
+    await API.post('/api/admin/task', { name, rate });
+    els.actName.value = '';
+    els.actRate.value = '';
+    await load();
+  }catch(err){
+    console.error(err);
+    showBanner(`Failed to save activity. ${err?.message || err}`);
+  }
 });
 
 els.saveCust.addEventListener('click', async ()=>{
-  const name = (els.custName.value || '').trim();
-  if(!name) return;
+  clearBanner();
 
-  await API.post('/api/admin/customer', { name });
-  els.custName.value='';
-  await load();
+  const name = (els.custName.value || '').trim();
+  if(!name){
+    return showBanner('Customer name is required.');
+  }
+
+  try{
+    await API.post('/api/admin/customer', { name });
+    els.custName.value = '';
+    await load();
+  }catch(err){
+    console.error(err);
+    showBanner(`Failed to save customer. ${err?.message || err}`);
+  }
 });
 
 els.rSave.addEventListener('click', async ()=>{
+  clearBanner();
+
   const customerId = Number(els.rCustomer.value);
   const taskId = Number(els.rTask.value);
   const responsible = (els.rName.value || '').trim();
-  if(!customerId || !taskId || !responsible) return;
 
-  await API.post('/api/admin/responsibility', { customerId, taskId, responsible });
-  els.rName.value='';
-  await load();
+  if(!customerId || !taskId || !responsible){
+    return showBanner('Select customer + task, and enter a responsible name.');
+  }
+
+  try{
+    await API.post('/api/admin/responsibility', { customerId, taskId, responsible });
+    els.rName.value = '';
+    await load();
+  }catch(err){
+    console.error(err);
+    showBanner(`Failed to save responsibility. ${err?.message || err}`);
+  }
 });
 
 load().catch(err=>{
   console.error(err);
+  showBanner(`Failed to initialize admin page. ${err?.message || err}`);
 });
