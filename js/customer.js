@@ -41,28 +41,6 @@ function monthEndLocal(key){
   return new Date(d.getFullYear(), d.getMonth()+1, 1, 0,0,0,0);
 }
 
-function calcTotals(entries){
-  let hours = 0;
-  let sek = 0;
-  entries.forEach(e=>{
-    const h = (Number(e.durationMinutes||0) / 60);
-    const s = Number(e.costAmount||0);
-    if(Number.isFinite(h)) hours += h;
-    if(Number.isFinite(s)) sek += s;
-  });
-  return { hours, sek };
-}
-
-function groupSum(entries, keyFn, valFn){
-  const map = new Map();
-  entries.forEach(e=>{
-    const k = keyFn(e);
-    const v = valFn(e);
-    map.set(k, (map.get(k)||0) + v);
-  });
-  return map;
-}
-
 function setApprovalState(isApproved){
   els.approvalState.textContent = isApproved ? 'Approved' : 'Not approved';
 }
@@ -89,6 +67,52 @@ function showBanner(text){
   if(!els.apiError) return;
   els.apiError.style.display = '';
   els.apiError.textContent = text;
+}
+
+/**
+ * IMPORTANT:
+ * Some DB rows (and the current stop SQL) can produce DurationMinutes = 0 for <1 minute entries.
+ * Also older sample data may not have DurationMinutes populated.
+ * So we compute duration from timestamps when needed.
+ */
+function getDurationHours(e){
+  const mins = Number(e.durationMinutes);
+  if(Number.isFinite(mins) && mins > 0) return mins / 60;
+
+  if(e.startTimeUtc && e.endTimeUtc){
+    const s = new Date(e.startTimeUtc).getTime();
+    const en = new Date(e.endTimeUtc).getTime();
+    if(Number.isFinite(s) && Number.isFinite(en) && en >= s){
+      return (en - s) / 3600000;
+    }
+  }
+
+  // running rows sometimes include seconds-so-far (if you ever reuse it)
+  const secsSoFar = Number(e.durationSecondsSoFar);
+  if(Number.isFinite(secsSoFar) && secsSoFar > 0) return secsSoFar / 3600;
+
+  return 0;
+}
+
+function calcTotals(entries){
+  let hours = 0;
+  let sek = 0;
+  entries.forEach(e=>{
+    hours += getDurationHours(e);
+    const s = Number(e.costAmount||0);
+    if(Number.isFinite(s)) sek += s;
+  });
+  return { hours, sek };
+}
+
+function groupSum(entries, keyFn, valFn){
+  const map = new Map();
+  entries.forEach(e=>{
+    const k = keyFn(e);
+    const v = valFn(e);
+    map.set(k, (map.get(k)||0) + v);
+  });
+  return map;
 }
 
 function render(){
@@ -169,6 +193,7 @@ function renderLogs(entries){
     .forEach(e=>{
       const tr = document.createElement('tr');
       const d = new Date(e.startTimeUtc);
+      const h = getDurationHours(e);
 
       tr.innerHTML = `
         <td>${formatYYYYMMDD(d)}</td>
@@ -176,7 +201,7 @@ function renderLogs(entries){
         <td>${e.endTimeUtc ? formatHHMM(e.endTimeUtc) : ''}</td>
         <td>${e.taskName || ''}</td>
         <td>${e.responsibleName || ''}</td>
-        <td style="text-align:right">${(Number(e.durationMinutes||0)/60).toFixed(2)}</td>
+        <td style="text-align:right">${h.toFixed(2)}</td>
         <td style="text-align:right">${Math.round(Number(e.costAmount||0))}</td>
       `;
       els.logs.appendChild(tr);
@@ -222,15 +247,15 @@ function renderRunning(running){
 function renderConsultants(entries, running){
   els.consultants.innerHTML='';
 
-  const byConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>Number(e.costAmount||0));
-  const hoursByConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>Number(e.durationMinutes||0)/60);
+  const sekByConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>Number(e.costAmount||0));
+  const hoursByConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>getDurationHours(e));
 
   const runningByConsultant = new Map();
   running.forEach(r=>runningByConsultant.set(r.consultantName || 'Consultant', r));
 
-  const rows = [...byConsultant.keys()].map(name=>{
+  const rows = [...sekByConsultant.keys()].map(name=>{
     const hours = hoursByConsultant.get(name) || 0;
-    const sek = byConsultant.get(name) || 0;
+    const sek = sekByConsultant.get(name) || 0;
     const run = runningByConsultant.get(name);
     return {
       name,
@@ -318,7 +343,6 @@ async function boot(){
   clearBanner();
 
   state.customers = await API.get('/api/customers');
-
   if(!Array.isArray(state.customers) || !state.customers.length){
     throw new Error('No customers returned from API (/api/customers).');
   }
@@ -328,17 +352,18 @@ async function boot(){
     els.customer.append(new Option(c.customerName, c.customerId));
   });
 
+  // ACTION 1: show more months so sample data is selectable (last 60 months)
   els.month.innerHTML='';
   els.year.innerHTML='';
 
   const now = new Date();
-  for(let i=0;i<12;i++){
+  for(let i=0;i<60;i++){
     const d = new Date(now.getFullYear(), now.getMonth()-i, 1);
     const mk = monthKey(d);
     els.month.append(new Option(mk, mk));
   }
 
-  for(let y=now.getFullYear(); y>=now.getFullYear()-4; y--){
+  for(let y=now.getFullYear(); y>=now.getFullYear()-10; y--){
     els.year.append(new Option(String(y), String(y)));
   }
 
@@ -359,23 +384,16 @@ async function boot(){
   });
 
   await refresh();
-
   setInterval(()=>{ refresh().catch(()=>{}); }, 30_000);
 }
 
 boot().catch(err=>{
   console.error(err);
 
-  // Show actionable diagnostics
   if(err && err.name === 'ApiHttpError'){
     const body = (err.bodyText || '').trim();
-    const extra =
-      body ? ` Response: ${body}` :
-      ` Response: (empty)`;
-
-    showBanner(`Failed to load data from API. ${err.url} -> HTTP ${err.status}.${extra}
-
-If you’re on Azure Static Web Apps: this usually means the Functions API can’t connect to SQL (missing SQL_* settings or SQL firewall).`);
+    const extra = body ? ` Response: ${body}` : ` Response: (empty)`;
+    showBanner(`Failed to load data from API. ${err.url} -> HTTP ${err.status}.${extra}`);
   } else {
     showBanner(`Failed to load data. ${err?.message || String(err)}`);
   }
