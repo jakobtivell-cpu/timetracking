@@ -42,7 +42,6 @@ function showBanner(text){
 
 function normalizeTask(t){
   if(!t || typeof t !== 'object') return null;
-  // Support both camelCase and PascalCase API shapes
   const taskId = Number(t.taskId ?? t.TaskId ?? t.id ?? t.Id);
   const taskName = (t.taskName ?? t.TaskName ?? t.name ?? t.Name ?? '').toString();
   const defaultRatePerHour = Number(t.defaultRatePerHour ?? t.DefaultRatePerHour ?? t.rate ?? t.Rate ?? 0);
@@ -72,11 +71,9 @@ function clearTables(){
   els.custTable.innerHTML = '';
   els.rTable.innerHTML = '';
 
-  // Dropdowns
   els.rCustomer.innerHTML = '';
   els.rTask.innerHTML = '';
 
-  // Add placeholders so the UI is clearly populated
   els.rCustomer.append(new Option('Select customer…', ''));
   els.rTask.append(new Option('Select task…', ''));
 }
@@ -84,7 +81,6 @@ function clearTables(){
 function render(){
   clearTables();
 
-  // Activities / Tasks
   state.tasks.forEach(t=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -94,7 +90,6 @@ function render(){
     els.actTable.appendChild(tr);
   });
 
-  // Customers + Responsibility dropdown
   state.customers.forEach(c=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `<td>${escapeHtml(c.customerName)}</td>`;
@@ -105,14 +100,12 @@ function render(){
     }
   });
 
-  // Tasks dropdown
   state.tasks.forEach(t=>{
     if(t.taskId){
       els.rTask.append(new Option(t.taskName, String(t.taskId)));
     }
   });
 
-  // Responsibility table
   state.responsibilities.forEach(r=>{
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -124,7 +117,6 @@ function render(){
   });
 }
 
-// Small helper to avoid accidental HTML injection in admin tables.
 function escapeHtml(s){
   return String(s ?? '')
     .replaceAll('&','&amp;')
@@ -134,35 +126,22 @@ function escapeHtml(s){
     .replaceAll("'","&#39;");
 }
 
-async function safeGet(url){
-  try{
-    return await API.get(url);
-  }catch(err){
-    console.error(err);
-    // Try a couple of common variations (case / leading slash) in case of route naming mismatch.
-    const variants = [];
-    if(typeof url === 'string'){
-      const u = url.startsWith('/') ? url.slice(1) : `/${url}`;
-      variants.push(u);
-      variants.push(url.toLowerCase());
-      variants.push(u.toLowerCase());
+async function tryGetAny(urls){
+  let lastErr;
+  for(const u of urls){
+    try{
+      return await API.get(u);
+    }catch(err){
+      lastErr = err;
+      console.error(err);
     }
-
-    for(const v of variants){
-      try{
-        return await API.get(v);
-      }catch(e){
-        console.error(e);
-      }
-    }
-    throw err;
   }
+  throw lastErr;
 }
 
 async function load(){
   clearBanner();
 
-  // Load each dataset independently so one failure doesn't blank the whole page.
   let tasks = [];
   let customers = [];
   let responsibilities = [];
@@ -170,22 +149,28 @@ async function load(){
   const errors = [];
 
   try{
-    const raw = await safeGet('/api/tasks');
+    const raw = await API.get('/api/tasks');
     tasks = (Array.isArray(raw) ? raw : raw?.tasks || raw?.Tasks || []).map(normalizeTask).filter(Boolean);
   }catch(err){
     errors.push(`Tasks: ${err?.message || err}`);
   }
 
   try{
-    const raw = await safeGet('/api/customers');
+    const raw = await API.get('/api/customers');
     customers = (Array.isArray(raw) ? raw : raw?.customers || raw?.Customers || []).map(normalizeCustomer).filter(Boolean);
   }catch(err){
     errors.push(`Customers: ${err?.message || err}`);
   }
 
   try{
-    const raw = await safeGet('/api/admin/responsibilities');
-    responsibilities = (Array.isArray(raw) ? raw : raw?.responsibilities || raw?.Responsibilities || []).map(normalizeResponsibility).filter(Boolean);
+    // Try plural first; fallback to singular GET (added server-side).
+    const raw = await tryGetAny([
+      '/api/admin/responsibilities',
+      '/api/admin/responsibility'
+    ]);
+    responsibilities = (Array.isArray(raw) ? raw : raw?.responsibilities || raw?.Responsibilities || [])
+      .map(normalizeResponsibility)
+      .filter(Boolean);
   }catch(err){
     errors.push(`Responsibilities: ${err?.message || err}`);
   }
@@ -198,8 +183,7 @@ async function load(){
 
   if(errors.length){
     showBanner(
-      'Some data could not be loaded from the API. ' +
-      'Open DevTools → Console/Network for details. ' +
+      'Some data could not be loaded from the API. Open DevTools → Console/Network for details. ' +
       errors.join(' | ')
     );
   }
