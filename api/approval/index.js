@@ -1,6 +1,21 @@
 const sql = require('mssql');
 const getDb = require('../_shared/db');
 
+let _hasApprovalTable;
+
+async function checkApprovalTable(db) {
+  if (_hasApprovalTable !== undefined) return _hasApprovalTable;
+  try {
+    const r = await db.request().query(
+      "SELECT OBJECT_ID('dbo.Approval', 'U') AS Id;"
+    );
+    _hasApprovalTable = r.recordset?.[0]?.Id !== null;
+  } catch {
+    _hasApprovalTable = false;
+  }
+  return _hasApprovalTable;
+}
+
 function badRequest(context, msg){
   context.res = {
     status: 400,
@@ -9,13 +24,17 @@ function badRequest(context, msg){
   };
 }
 
-async function handleGet(context, req){
+async function handleGet(context, req, db){
+  const hasTable = await checkApprovalTable(db);
+  if (!hasTable) {
+    context.res = { status: 200, headers: { 'Content-Type': 'application/json' }, body: null };
+    return;
+  }
+
   const customerId = Number(req.query.customerId);
   const periodKey  = (req.query.periodKey || '').trim();
 
   if(!customerId) return badRequest(context, 'customerId is required');
-
-  const db = await getDb();
 
   const q = periodKey
     ? `SELECT ApprovalId, CustomerId, PeriodKey, ApprovedBy, ApprovedAtUtc, RevokedAtUtc
@@ -32,13 +51,13 @@ async function handleGet(context, req){
     .query(q);
 
   const rows = (r.recordset || []).map(x => ({
-    approvalId:   Number(x.ApprovalId),
-    customerId:   Number(x.CustomerId),
-    periodKey:    x.PeriodKey,
-    approvedBy:   x.ApprovedBy,
+    approvalId:    Number(x.ApprovalId),
+    customerId:    Number(x.CustomerId),
+    periodKey:     x.PeriodKey,
+    approvedBy:    x.ApprovedBy,
     approvedAtUtc: x.ApprovedAtUtc,
-    revokedAtUtc: x.RevokedAtUtc,
-    isApproved:   x.RevokedAtUtc === null
+    revokedAtUtc:  x.RevokedAtUtc,
+    isApproved:    x.RevokedAtUtc === null
   }));
 
   context.res = {
@@ -48,7 +67,17 @@ async function handleGet(context, req){
   };
 }
 
-async function handlePost(context, req){
+async function handlePost(context, req, db){
+  const hasTable = await checkApprovalTable(db);
+  if (!hasTable) {
+    context.res = {
+      status: 501,
+      headers: { 'Content-Type': 'application/json' },
+      body: { error: 'Approval table not yet created. Run sql/000_create_schema.sql.' }
+    };
+    return;
+  }
+
   const body = req.body || {};
   const customerId = Number(body.customerId);
   const periodKey  = (body.periodKey || '').trim();
@@ -58,8 +87,6 @@ async function handlePost(context, req){
   if(!customerId) return badRequest(context, 'customerId is required');
   if(!periodKey || !/^\d{4}-\d{2}$/.test(periodKey)) return badRequest(context, 'periodKey must be YYYY-MM format');
   if(!approvedBy) return badRequest(context, 'approvedBy is required');
-
-  const db = await getDb();
 
   if(revoke){
     await db.request()
@@ -100,9 +127,10 @@ async function handlePost(context, req){
 
 module.exports = async function (context, req) {
   try {
+    const db = await getDb();
     const method = (req.method || 'GET').toUpperCase();
-    if(method === 'GET')  return await handleGet(context, req);
-    if(method === 'POST') return await handlePost(context, req);
+    if(method === 'GET')  return await handleGet(context, req, db);
+    if(method === 'POST') return await handlePost(context, req, db);
 
     context.res = {
       status: 405,

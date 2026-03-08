@@ -1,5 +1,6 @@
 const sql = require('mssql');
 const getDb = require('../_shared/db');
+const { getSchema, durationCol, durationUnit } = require('../_shared/db');
 
 function badRequest(context, msg){
   context.res = {
@@ -16,6 +17,10 @@ module.exports = async function (context, req) {
     if(!timeEntryId) return badRequest(context, 'timeEntryId is required');
 
     const db = await getDb();
+    const schema = await getSchema(db);
+    const durCol = durationCol(schema);
+    const durUnit = durationUnit(schema);
+    const cancelFilter = schema.timeEntry.hasCancelledAtUtc ? 'AND CancelledAtUtc IS NULL' : '';
 
     const r = await db.request()
       .input('TimeEntryId', sql.BigInt, timeEntryId)
@@ -24,13 +29,13 @@ module.exports = async function (context, req) {
 
          UPDATE dbo.TimeEntry
          SET
-           EndTimeUtc      = @EndTimeUtc,
-           DurationSeconds = DATEDIFF(SECOND, StartTimeUtc, @EndTimeUtc),
-           CostAmount      = ROUND(RatePerHour * (DATEDIFF(SECOND, StartTimeUtc, @EndTimeUtc) / 3600.0), 2),
-           UpdatedAtUtc    = SYSUTCDATETIME()
+           EndTimeUtc   = @EndTimeUtc,
+           ${durCol}    = DATEDIFF(${durUnit}, StartTimeUtc, @EndTimeUtc),
+           CostAmount   = ROUND(RatePerHour * (DATEDIFF(SECOND, StartTimeUtc, @EndTimeUtc) / 3600.0), 2),
+           UpdatedAtUtc = SYSUTCDATETIME()
          WHERE TimeEntryId = @TimeEntryId
            AND EndTimeUtc IS NULL
-           AND CancelledAtUtc IS NULL;
+           ${cancelFilter};
 
          SELECT @@ROWCOUNT AS RowsUpdated;`
       );

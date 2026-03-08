@@ -1,10 +1,16 @@
 const getDb = require('../_shared/db');
+const { getSchema } = require('../_shared/db');
 
 module.exports = async function (context, req) {
   try {
     const db = await getDb();
+    const schema = await getSchema(db);
+
+    const cols = ['CustomerId', 'CustomerName', 'IsActive'];
+    if (schema.customer.hasCurrencyCode) cols.push('CurrencyCode');
+
     const r = await db.request().query(
-      `SELECT CustomerId, CustomerName, CurrencyCode, IsActive
+      `SELECT ${cols.join(', ')}
        FROM dbo.Customer
        WHERE IsActive = 1
        ORDER BY CustomerName ASC;`

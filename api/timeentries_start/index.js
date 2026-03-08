@@ -1,6 +1,6 @@
 const sql = require('mssql');
 const getDb = require('../_shared/db');
-const { withTransaction } = require('../_shared/db');
+const { withTransaction, getSchema, durationCol, durationUnit } = require('../_shared/db');
 
 function badRequest(context, msg){
   context.res = {
@@ -21,13 +21,20 @@ module.exports = async function (context, req) {
     if(!taskId) return badRequest(context, 'taskId is required');
 
     const db = await getDb();
+    const schema = await getSchema(db);
+    const s = schema.timeEntry;
+    const durCol = durationCol(schema);
+    const durUnit = durationUnit(schema);
 
-    // Get rate + currency before transaction
+    // Get rate (and currency if available)
+    const metaCols = ['t.DefaultRatePerHour'];
+    if (schema.customer.hasCurrencyCode) metaCols.push('c.CurrencyCode');
+
     const rMeta = await db.request()
       .input('TaskId', sql.Int, taskId)
       .input('CustomerId', sql.Int, customerId)
       .query(
-        `SELECT t.DefaultRatePerHour, c.CurrencyCode
+        `SELECT ${metaCols.join(', ')}
          FROM dbo.Task t
          CROSS JOIN dbo.Customer c
          WHERE t.TaskId = @TaskId AND c.CustomerId = @CustomerId;`
@@ -42,7 +49,8 @@ module.exports = async function (context, req) {
     // Use a transaction: auto-stop any running entry, then insert new one
     const result = await withTransaction(async (tx) => {
       // 1. Auto-stop any running entry for this consultant
-      if(consultantName){
+      if(s.hasConsultantName && consultantName){
+        const cancelFilter = s.hasCancelledAtUtc ? 'AND CancelledAtUtc IS NULL' : '';
         await tx.request()
           .input('ConsultantName', sql.NVarChar(200), consultantName)
           .query(
@@ -50,41 +58,47 @@ module.exports = async function (context, req) {
 
              UPDATE dbo.TimeEntry
              SET
-               EndTimeUtc      = @StopTime,
-               DurationSeconds = DATEDIFF(SECOND, StartTimeUtc, @StopTime),
-               CostAmount      = ROUND(RatePerHour * (DATEDIFF(SECOND, StartTimeUtc, @StopTime) / 3600.0), 2),
-               UpdatedAtUtc    = SYSUTCDATETIME()
+               EndTimeUtc   = @StopTime,
+               ${durCol}    = DATEDIFF(${durUnit}, StartTimeUtc, @StopTime),
+               CostAmount   = ROUND(RatePerHour * (DATEDIFF(SECOND, StartTimeUtc, @StopTime) / 3600.0), 2),
+               UpdatedAtUtc = SYSUTCDATETIME()
              WHERE ConsultantName = @ConsultantName
                AND EndTimeUtc IS NULL
-               AND CancelledAtUtc IS NULL;`
+               ${cancelFilter};`
           );
       }
 
-      // 2. Insert new entry
-      const r = await tx.request()
+      // 2. Build INSERT columns and values dynamically
+      const cols = ['CustomerId', 'TaskId', 'StartTimeUtc', 'EndTimeUtc',
+                    durCol, 'RatePerHour', 'CostAmount', 'CreatedAtUtc', 'UpdatedAtUtc'];
+      const vals = ['@CustomerId', '@TaskId', '@Now', 'NULL',
+                    'NULL', '@RatePerHour', 'NULL', 'SYSUTCDATETIME()', 'SYSUTCDATETIME()'];
+
+      const request = tx.request()
         .input('CustomerId', sql.Int, customerId)
         .input('TaskId', sql.Int, taskId)
-        .input('RatePerHour', sql.Decimal(19,4), rate)
-        .input('CurrencyCode', sql.Char(3), currency)
-        .input('ConsultantName', sql.NVarChar(200), consultantName)
-        .query(
-          `DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+        .input('RatePerHour', sql.Decimal(19,4), rate);
 
-           INSERT INTO dbo.TimeEntry (
-             CustomerId, TaskId, StartTimeUtc, EndTimeUtc,
-             DurationSeconds, RatePerHour, CostAmount,
-             CurrencyCode, ConsultantName,
-             CreatedAtUtc, UpdatedAtUtc
-           )
-           VALUES (
-             @CustomerId, @TaskId, @Now, NULL,
-             NULL, @RatePerHour, NULL,
-             @CurrencyCode, @ConsultantName,
-             SYSUTCDATETIME(), SYSUTCDATETIME()
-           );
+      if (s.hasCurrencyCode) {
+        cols.push('CurrencyCode');
+        vals.push('@CurrencyCode');
+        request.input('CurrencyCode', sql.Char(3), currency);
+      }
 
-           SELECT CAST(SCOPE_IDENTITY() AS BIGINT) AS TimeEntryId, @Now AS StartTimeUtc;`
-        );
+      if (s.hasConsultantName) {
+        cols.push('ConsultantName');
+        vals.push('@ConsultantName');
+        request.input('ConsultantName', sql.NVarChar(200), consultantName);
+      }
+
+      const r = await request.query(
+        `DECLARE @Now DATETIME2(0) = SYSUTCDATETIME();
+
+         INSERT INTO dbo.TimeEntry (${cols.join(', ')})
+         VALUES (${vals.join(', ')});
+
+         SELECT CAST(SCOPE_IDENTITY() AS BIGINT) AS TimeEntryId, @Now AS StartTimeUtc;`
+      );
 
       return r.recordset?.[0] || {};
     });
