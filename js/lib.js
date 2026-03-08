@@ -105,6 +105,12 @@ function drawDonut(canvas, items){
   ctx.clearRect(0,0,w,h);
 
   const total = items.reduce((a,x)=>a + (x.value||0), 0);
+
+  // Store segment geometry for hover hit-testing
+  canvas._donutSegments = [];
+  canvas._donutTotal = total;
+  canvas._donutItems = items;
+
   if(total <= 0){
     ctx.beginPath();
     ctx.arc(w/2, h/2, Math.min(w,h)/2 - 6, 0, Math.PI*2);
@@ -113,6 +119,9 @@ function drawDonut(canvas, items){
     ctx.stroke();
     return;
   }
+
+  const outerR = Math.min(w,h)/2 - 2;
+  const innerR = Math.min(w,h)/2 - 18;
 
   let start = -Math.PI/2;
   items.forEach((it, idx)=>{
@@ -125,16 +134,70 @@ function drawDonut(canvas, items){
 
     ctx.beginPath();
     ctx.moveTo(w/2, h/2);
-    ctx.arc(w/2, h/2, Math.min(w,h)/2 - 2, start, end);
+    ctx.arc(w/2, h/2, outerR, start, end);
     ctx.closePath();
     ctx.fillStyle = `rgba(255,255,255,${alpha.toFixed(2)})`;
     ctx.fill();
 
+    canvas._donutSegments.push({ start, end, label: it.label, value: val, idx });
     start = end;
   });
 
+  // Inner hole
   ctx.beginPath();
-  ctx.arc(w/2, h/2, Math.min(w,h)/2 - 18, 0, Math.PI*2);
+  ctx.arc(w/2, h/2, innerR, 0, Math.PI*2);
   ctx.fillStyle = 'rgba(0,0,0,0.50)';
   ctx.fill();
+
+  // Set up hover listener once
+  if(!canvas._donutHoverBound){
+    canvas._donutHoverBound = true;
+
+    // Create tooltip element
+    const tip = document.createElement('div');
+    tip.className = 'donutTip';
+    canvas.parentElement.style.position = 'relative';
+    canvas.parentElement.appendChild(tip);
+    canvas._donutTip = tip;
+
+    canvas.addEventListener('mousemove', function(e){
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = canvas.width / rect.width;
+      const scaleY = canvas.height / rect.height;
+      const mx = (e.clientX - rect.left) * scaleX;
+      const my = (e.clientY - rect.top) * scaleY;
+
+      const cx = canvas.width / 2;
+      const cy = canvas.height / 2;
+      const dx = mx - cx;
+      const dy = my - cy;
+      const dist = Math.sqrt(dx*dx + dy*dy);
+      const oR = Math.min(canvas.width, canvas.height)/2 - 2;
+      const iR = Math.min(canvas.width, canvas.height)/2 - 18;
+
+      if(dist < iR || dist > oR || !canvas._donutSegments?.length){
+        tip.style.opacity = '0';
+        return;
+      }
+
+      let angle = Math.atan2(dy, dx);
+      if(angle < -Math.PI/2) angle += Math.PI*2;
+
+      const seg = canvas._donutSegments.find(s => angle >= s.start && angle < s.end);
+      if(!seg){
+        tip.style.opacity = '0';
+        return;
+      }
+
+      const pct = canvas._donutTotal > 0 ? ((seg.value / canvas._donutTotal) * 100).toFixed(1) : '0';
+      tip.textContent = `${seg.label}: ${Math.round(seg.value)} (${pct}%)`;
+      tip.style.opacity = '1';
+      tip.style.left = `${(e.clientX - rect.left)}px`;
+      tip.style.top = `${(e.clientY - rect.top) - 32}px`;
+    });
+
+    canvas.addEventListener('mouseleave', function(){
+      tip.style.opacity = '0';
+    });
+  }
 }

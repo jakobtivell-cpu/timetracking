@@ -71,6 +71,12 @@ input,select{
   font-weight:900;
 }
 
+/* Force legible dropdown options in all browsers */
+select option{
+  background:#1a1a1a;
+  color:#fff;
+}
+
 .kpi{ display:flex; flex-direction:column; gap:4px; min-width:180px; }
 .kpi small{ color:var(--muted); font-size:12px; font-weight:900; }
 .kpi b{ font-variant-numeric: tabular-nums; font-size:22px; font-weight:900; }
@@ -130,10 +136,29 @@ input,select{
 }
 
 .donutWrap{ display:flex; gap:14px; align-items:center; flex-wrap:wrap; }
-canvas{ background:transparent; border-radius:14px; }
+canvas{ background:transparent; border-radius:14px; cursor:crosshair; }
 .legend{ display:flex; flex-direction:column; gap:8px; }
 .legendItem{ display:flex; gap:10px; align-items:center; color:rgba(255,255,255,.92); font-size:13px; }
 .swatch{ width:10px; height:10px; border-radius:999px; background:rgba(255,255,255,.25); }
+
+/* Donut hover tooltip */
+.donutTip{
+  position:absolute;
+  pointer-events:none;
+  background:rgba(30,30,30,.92);
+  backdrop-filter:blur(8px);
+  -webkit-backdrop-filter:blur(8px);
+  color:#fff;
+  padding:6px 12px;
+  border-radius:10px;
+  font-size:12px;
+  font-weight:900;
+  white-space:nowrap;
+  opacity:0;
+  transition: opacity .12s ease;
+  transform:translateX(-50%);
+  z-index:10;
+}
 
 /* “Currently working on” list */
 .runningList{ display:flex; flex-direction:column; gap:10px; }

@@ -36,9 +36,5 @@
     "X-Frame-Options": "DENY",
     "Referrer-Policy": "strict-origin-when-cross-origin",
     "Permissions-Policy": "camera=(), microphone=(), geolocation=()"
-  },
-  "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": ["/css/*", "/js/*", "/pwa/*", "/api/*", "/api/**"]
   }
 }
