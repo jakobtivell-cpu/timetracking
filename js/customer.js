@@ -17,6 +17,9 @@ const els = {
   runningList:   document.getElementById('runningList'),
   consultants:   document.getElementById('consultants'),
   forecastHead:  document.getElementById('forecastHead'),
+  forecastKpi:   document.getElementById('forecastKpi'),
+  forecastTotal: document.getElementById('forecastTotal'),
+  forecastCurrency: document.getElementById('forecastCurrency'),
   approve:       document.getElementById('approve'),
   revokeApproval:document.getElementById('revokeApproval'),
   approverName:  document.getElementById('approverName'),
@@ -179,6 +182,22 @@ function render(){
 
   els.forecastHead.style.display = isCurrentMonthSelected() ? '' : 'none';
 
+  // Monthly forecast KPI (cost_so_far / days_elapsed * days_in_month)
+  const showForecastKpi = isCurrentMonthSelected();
+  if(els.forecastKpi){
+    els.forecastKpi.style.display = showForecastKpi ? '' : 'none';
+    if(showForecastKpi && totals.cost > 0){
+      const now = new Date();
+      const elapsedDays = Math.max(1, now.getDate());
+      const totalDays = daysInMonth(now.getFullYear(), now.getMonth());
+      const forecast = Math.round(totals.cost * (totalDays / elapsedDays));
+      els.forecastTotal.textContent = forecast.toLocaleString();
+      if(els.forecastCurrency) els.forecastCurrency.textContent = state.currency;
+    } else {
+      els.forecastTotal.textContent = '—';
+    }
+  }
+
   renderBars(ended);
   renderDonut(ended);
   renderLogs(ended);
@@ -282,7 +301,7 @@ function renderRunning(running){
       row.className = 'runningItem';
       row.innerHTML = `
         <div>
-          <b>${e.consultantName || 'Consultant'}</b>
+          <b>${e.consultantName || 'Jakob'}</b>
           <small>${e.taskName || ''}</small>
         </div>
         <div class="runningRight">
@@ -297,11 +316,11 @@ function renderRunning(running){
 function renderConsultants(entries, running){
   els.consultants.innerHTML='';
 
-  const costByConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>Number(e.costAmount||0));
-  const hoursByConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>getDurationHours(e));
+  const costByConsultant = groupSum(entries, e=>e.consultantName || 'Jakob', e=>Number(e.costAmount||0));
+  const hoursByConsultant = groupSum(entries, e=>e.consultantName || 'Jakob', e=>getDurationHours(e));
 
   const runningByConsultant = new Map();
-  running.forEach(r=>runningByConsultant.set(r.consultantName || 'Consultant', r));
+  running.forEach(r=>runningByConsultant.set(r.consultantName || 'Jakob', r));
 
   const rows = [...costByConsultant.keys()].map(name=>{
     const hours = hoursByConsultant.get(name) || 0;
@@ -443,14 +462,26 @@ async function boot(){
   els.month.value = monthKey(now);
   els.year.value = String(now.getFullYear());
 
-  // Auto-pick month with data
+  // Default to current month; if current month has no data, try latest month with data
   try{
     const cid = Number(els.customer.value);
-    const all = await API.get(`/api/timeentries?customerId=${encodeURIComponent(cid)}`);
-    const mk = pickLatestMonthWithData(all);
-    if(mk){
-      const hasOpt = Array.from(els.month.options).some(o => o.value === mk);
-      if(hasOpt) els.month.value = mk;
+    const currentMk = monthKey(now);
+    
+    // Check if current month has data
+    const fromCurrent = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+    const toCurrent = new Date(now.getFullYear(), now.getMonth()+1, 1).toISOString();
+    const currentEntries = await API.get(`/api/timeentries?customerId=${encodeURIComponent(cid)}&from=${encodeURIComponent(fromCurrent)}&to=${encodeURIComponent(toCurrent)}`);
+    
+    if(currentEntries.length > 0){
+      els.month.value = currentMk;
+    } else {
+      // Current month empty — find latest month with data
+      const all = await API.get(`/api/timeentries?customerId=${encodeURIComponent(cid)}`);
+      const mk = pickLatestMonthWithData(all);
+      if(mk){
+        const hasOpt = Array.from(els.month.options).some(o => o.value === mk);
+        if(hasOpt) els.month.value = mk;
+      }
     }
   }catch{ /* ignore */ }
 
