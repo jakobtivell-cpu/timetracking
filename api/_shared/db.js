@@ -46,7 +46,7 @@ async function withTransaction(fn) {
 
 /**
  * Schema detection — cached per process lifetime.
- * Checks which optional columns exist so queries adapt to old/new schemas.
+ * Uses COL_LENGTH() which is known to work on this Azure SQL instance.
  */
 let _schema;
 async function getSchema(db) {
@@ -63,21 +63,22 @@ async function getSchema(db) {
   };
   try {
     const r = await db.request().query(`
-      SELECT TABLE_NAME, COLUMN_NAME
-      FROM INFORMATION_SCHEMA.COLUMNS
-      WHERE TABLE_SCHEMA = 'dbo'
-        AND TABLE_NAME IN ('Customer','TimeEntry')
-        AND COLUMN_NAME IN ('CurrencyCode','ConsultantName','CancelledAtUtc','DurationSeconds','DurationMinutes');
+      SELECT
+        COL_LENGTH('dbo.Customer','CurrencyCode')    AS C_Currency,
+        COL_LENGTH('dbo.TimeEntry','ConsultantName')  AS TE_Consultant,
+        COL_LENGTH('dbo.TimeEntry','CurrencyCode')    AS TE_Currency,
+        COL_LENGTH('dbo.TimeEntry','CancelledAtUtc')  AS TE_Cancelled,
+        COL_LENGTH('dbo.TimeEntry','DurationSeconds')  AS TE_DurSec,
+        COL_LENGTH('dbo.TimeEntry','DurationMinutes')  AS TE_DurMin;
     `);
-    for (const row of (r.recordset || [])) {
-      const t = row.TABLE_NAME;
-      const c = row.COLUMN_NAME;
-      if (t === 'Customer' && c === 'CurrencyCode') _schema.customer.hasCurrencyCode = true;
-      if (t === 'TimeEntry' && c === 'ConsultantName') _schema.timeEntry.hasConsultantName = true;
-      if (t === 'TimeEntry' && c === 'CurrencyCode') _schema.timeEntry.hasCurrencyCode = true;
-      if (t === 'TimeEntry' && c === 'CancelledAtUtc') _schema.timeEntry.hasCancelledAtUtc = true;
-      if (t === 'TimeEntry' && c === 'DurationSeconds') _schema.timeEntry.hasDurationSeconds = true;
-      if (t === 'TimeEntry' && c === 'DurationMinutes') _schema.timeEntry.hasDurationMinutes = true;
+    const row = r.recordset?.[0];
+    if (row) {
+      _schema.customer.hasCurrencyCode        = row.C_Currency   != null;
+      _schema.timeEntry.hasConsultantName      = row.TE_Consultant != null;
+      _schema.timeEntry.hasCurrencyCode        = row.TE_Currency  != null;
+      _schema.timeEntry.hasCancelledAtUtc      = row.TE_Cancelled != null;
+      _schema.timeEntry.hasDurationSeconds     = row.TE_DurSec   != null;
+      _schema.timeEntry.hasDurationMinutes     = row.TE_DurMin   != null;
     }
   } catch { /* proceed with defaults */ }
   return _schema;
