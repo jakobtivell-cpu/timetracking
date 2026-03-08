@@ -1,8 +1,12 @@
 {
-  "name": "Egaux Time",
+  "name": "Egaux Time Tracking",
   "short_name": "Time",
+  "description": "Consultant time tracking",
   "start_url": "/mobile.html",
   "display": "standalone",
+  "orientation": "portrait",
   "background_color": "#000000",
-  "theme_color": "#000000"
+  "theme_color": "#000000",
+  "scope": "/",
+  "categories": ["business", "productivity"]
 }

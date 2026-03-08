@@ -1,7 +1,8 @@
 /* Mobile time tracker
    - Starts/stops DB-backed timers
    - Keeps a minimal local running state for UX
-   - Stealth clock shows billed hours today (billable time only)
+   - Shows billed hours today (billable time only)
+   - Error feedback via toast
 */
 
 const STORAGE = {
@@ -10,32 +11,42 @@ const STORAGE = {
   customerId: 'tt_customerId'
 };
 
-const CAP_HOURS = 8; // gauge caps at 8h (adjust if you work 12h days like a maniac)
+const CAP_HOURS = 8;
 
 const els = {
-  // UI elements are intentionally optional; the mobile layout is a pure HTML/CSS shell.
-  // If an element is missing, we simply skip that feature (prevents runtime errors).
-  cancelBtn: document.getElementById('cancelBtn'),
-  pauseBtn: document.getElementById('pauseBtn') || document.getElementById('pause'),
-  tasks: document.getElementById('grid') || document.getElementById('tasks'),
-  activity: document.getElementById('activity'),
-  timer: document.getElementById('timer'),
-  clockProg: document.getElementById('clockProg'),
-  hourHand: document.getElementById('hourHand'),
-  minHand: document.getElementById('minHand'),
+  cancelBtn:  document.getElementById('cancelBtn'),
+  pauseBtn:   document.getElementById('pauseBtn'),
+  tasks:      document.getElementById('grid'),
+  activity:   document.getElementById('activity'),
+  timer:      document.getElementById('timer'),
+  dailyHours: document.getElementById('dailyHours'),
+  toast:      document.getElementById('toast')
 };
 
 let state = {
-  running: null,          // { mode:'task'|'break', taskId, taskName, startMs, timeEntryId?, customerId, consultantName }
-  tasks: [],              // [{taskId, taskName, defaultRatePerHour, isBillable}]
-  taskMap: new Map(),     // taskId -> task object
+  running: null,
+  tasks: [],
+  taskMap: new Map(),
   customers: [],
   customerId: null,
   consultantName: null,
   todayBilledSecondsFromDb: 0,
-  clockLen: null,
-  lastDayTotalFetchMs: 0
+  lastDayTotalFetchMs: 0,
+  busy: false
 };
+
+// ---- Toast / error feedback ----
+
+let toastTimer = null;
+function showToast(msg, durationMs = 3500){
+  if(!els.toast) return;
+  els.toast.textContent = msg;
+  els.toast.classList.add('visible');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=> els.toast.classList.remove('visible'), durationMs);
+}
+
+// ---- Persistence ----
 
 function readRunning(){
   try{ return JSON.parse(localStorage.getItem(STORAGE.running)); }
@@ -68,6 +79,8 @@ async function ensureCustomerId(){
   return Number(first);
 }
 
+// ---- Task rendering ----
+
 async function loadTasks(){
   const tasks = await API.get('/api/tasks');
   state.tasks = tasks;
@@ -97,8 +110,8 @@ function syncActiveTaskStyles(){
       btn.classList.toggle('active', activeTaskId === tid);
     });
   }
-
   if(els.pauseBtn) els.pauseBtn.classList.toggle('active', state.running?.mode === 'break');
+  if(els.cancelBtn) els.cancelBtn.classList.toggle('visible', !!state.running);
 }
 
 function setStatus(taskName, seconds){
@@ -113,15 +126,27 @@ function runningSeconds(){
   return Math.floor((nowMs() - state.running.startMs) / 1000);
 }
 
-async function onTaskTap(taskId){
-  // Switching tasks: stop whatever is running, then start new.
-  if(state.running?.mode === 'task' && state.running.taskId === taskId){
-    // Tapping same task = do nothing (prevents accidental restart)
-    return;
-  }
+// ---- Busy guard (prevent double-taps during API calls) ----
 
-  await stopCurrentIfNeeded({ goToBreak: false });
-  await startDbTask(taskId);
+async function guarded(fn){
+  if(state.busy) return;
+  state.busy = true;
+  try{ await fn(); }
+  catch(err){
+    console.error(err);
+    showToast('Network error — please try again');
+  }
+  finally{ state.busy = false; }
+}
+
+// ---- Core actions ----
+
+async function onTaskTap(taskId){
+  if(state.running?.mode === 'task' && state.running.taskId === taskId) return;
+  await guarded(async ()=>{
+    await stopCurrentIfNeeded({ goToBreak: false });
+    await startDbTask(taskId);
+  });
 }
 
 async function startDbTask(taskId){
@@ -150,8 +175,6 @@ async function startDbTask(taskId){
   writeRunning(state.running);
   syncActiveTaskStyles();
   setStatus(t.taskName, 0);
-
-  // Update the billed-hours gauge soon.
   refreshTodayBilledFromDb(true).catch(()=>{});
 }
 
@@ -179,7 +202,6 @@ async function stopCurrentIfNeeded({ goToBreak }){
     return;
   }
 
-  // DB-backed running task
   const timeEntryId = state.running.timeEntryId;
   try{
     await API.post('/api/timeentries/stop', { timeEntryId });
@@ -188,7 +210,6 @@ async function stopCurrentIfNeeded({ goToBreak }){
     writeRunning(null);
     syncActiveTaskStyles();
     if(goToBreak) startBreak();
-    // Refresh day totals after stop (so gauge includes finished segment)
     refreshTodayBilledFromDb(true).catch(()=>{});
   }
 }
@@ -204,13 +225,15 @@ async function cancelCurrent(){
     return;
   }
 
-  // Cancel = delete running DB entry (don’t bill it)
   const timeEntryId = state.running.timeEntryId;
   try{
     await API.post('/api/timeentries/cancel', { timeEntryId });
+    showToast('Entry cancelled');
   } catch {
-    // Worst case: if cancel endpoint isn't available, stop it instead.
-    await API.post('/api/timeentries/stop', { timeEntryId });
+    // Fallback: stop it instead if cancel fails
+    try{ await API.post('/api/timeentries/stop', { timeEntryId }); }
+    catch{ /* give up */ }
+    showToast('Could not cancel — entry was stopped instead');
   }
 
   state.running = null;
@@ -221,21 +244,22 @@ async function cancelCurrent(){
 }
 
 async function onPause(){
-  // Pause toggles break mode.
-  if(!state.running){
-    startBreak();
-    return;
-  }
-  if(state.running.mode === 'break'){
-    // pause again = exit break
-    state.running = null;
-    writeRunning(null);
-    syncActiveTaskStyles();
-    return;
-  }
-
-  await stopCurrentIfNeeded({ goToBreak: true });
+  await guarded(async ()=>{
+    if(!state.running){
+      startBreak();
+      return;
+    }
+    if(state.running.mode === 'break'){
+      state.running = null;
+      writeRunning(null);
+      syncActiveTaskStyles();
+      return;
+    }
+    await stopCurrentIfNeeded({ goToBreak: true });
+  });
 }
+
+// ---- Daily billed hours ----
 
 function localDayRangeUtcIso(date=new Date()){
   const startLocal = startOfLocalDay(date);
@@ -249,64 +273,44 @@ async function refreshTodayBilledFromDb(force=false){
   state.lastDayTotalFetchMs = now;
 
   const { fromIso, toIso } = localDayRangeUtcIso(new Date());
-
-  // Pull today's entries for THIS consultant (so the clock is personal)
   const url = `/api/timeentries?customerId=${encodeURIComponent(state.customerId)}&from=${encodeURIComponent(fromIso)}&to=${encodeURIComponent(toIso)}&consultant=${encodeURIComponent(state.consultantName)}`;
-  const entries = await API.get(url);
 
-  // Sum billable seconds from completed entries
-  let seconds = 0;
-  entries.forEach(e=>{
-    if(!e.endTimeUtc) return;
-    const task = state.taskMap.get(e.taskId);
-    if(task && task.isBillable === false) return;
-    const s = new Date(e.startTimeUtc).getTime();
-    const en = new Date(e.endTimeUtc).getTime();
-    if(!Number.isFinite(s) || !Number.isFinite(en)) return;
-    seconds += Math.max(0, Math.floor((en - s) / 1000));
-  });
-
-  state.todayBilledSecondsFromDb = seconds;
+  try {
+    const entries = await API.get(url);
+    let seconds = 0;
+    entries.forEach(e=>{
+      if(!e.endTimeUtc) return;
+      const task = state.taskMap.get(e.taskId);
+      if(task && task.isBillable === false) return;
+      const s = new Date(e.startTimeUtc).getTime();
+      const en = new Date(e.endTimeUtc).getTime();
+      if(!Number.isFinite(s) || !Number.isFinite(en)) return;
+      seconds += Math.max(0, Math.floor((en - s) / 1000));
+    });
+    state.todayBilledSecondsFromDb = seconds;
+  } catch {
+    // Silently fail — will retry next interval
+  }
 }
 
-function updateClock(){
-  // Clock/gauge is optional (not present in the re-instated minimal UI).
-  if(!els.clockProg || !els.hourHand || !els.minHand) return;
+function updateDailyHours(){
+  if(!els.dailyHours) return;
 
-  // Initialise length once
-  if(state.clockLen === null){
-    try{ state.clockLen = els.clockProg.getTotalLength(); }
-    catch{ state.clockLen = 1; }
-    els.clockProg.style.strokeDasharray = `${state.clockLen} ${state.clockLen}`;
-  }
-
-  // Billed seconds today = DB total + running (if billable)
   let billedSeconds = state.todayBilledSecondsFromDb;
   if(state.running?.mode === 'task'){
     const task = state.taskMap.get(state.running.taskId);
-    const isBillable = (task?.isBillable !== false);
-    if(isBillable){
+    if(task?.isBillable !== false){
       billedSeconds += runningSeconds();
     }
   }
 
-  const billedHours = billedSeconds / 3600;
-  const pct = Math.max(0, Math.min(1, billedHours / CAP_HOURS));
-
-  // Progress arc
-  const dash = state.clockLen * pct;
-  els.clockProg.style.strokeDasharray = `${dash} ${state.clockLen}`;
-
-  // Hands (subtle motion, not a literal clock)
-  const sweep = 120; // degrees
-  const hourDeg = -90 + (pct * sweep); // from 12 o'clock down
-
-  const mins = new Date().getMinutes();
-  const minDeg = -90 + (mins/60) * sweep;
-
-  els.hourHand.setAttribute('transform', `rotate(${hourDeg})`);
-  els.minHand.setAttribute('transform', `rotate(${minDeg})`);
+  const hours = billedSeconds / 3600;
+  const pct = Math.min(100, (hours / CAP_HOURS) * 100);
+  els.dailyHours.textContent = `${hours.toFixed(1)}h`;
+  els.dailyHours.style.setProperty('--pct', `${pct.toFixed(0)}%`);
 }
+
+// ---- Render loop ----
 
 function renderLoop(){
   if(state.running){
@@ -314,20 +318,20 @@ function renderLoop(){
   } else {
     setStatus('—', 0);
   }
-
-  updateClock();
+  updateDailyHours();
   requestAnimationFrame(renderLoop);
 }
 
+// ---- Boot ----
+
 async function boot(){
-  // Init persisted state
   state.consultantName = ensureConsultantName();
   state.customerId = await ensureCustomerId();
 
   await loadTasks();
   renderTasks();
 
-  // Restore running state if present
+  // Restore running state
   const persisted = readRunning();
   if(persisted && persisted.consultantName === state.consultantName){
     state.running = persisted;
@@ -336,18 +340,25 @@ async function boot(){
 
   // Wire UI
   if(els.cancelBtn){
-    els.cancelBtn.addEventListener('click', () => cancelCurrent().catch(err=>console.error(err)));
+    els.cancelBtn.addEventListener('click', () => guarded(()=> cancelCurrent()));
   }
   if(els.pauseBtn){
-    els.pauseBtn.addEventListener('click', () => onPause().catch(err=>console.error(err)));
+    els.pauseBtn.addEventListener('click', () => onPause());
   }
 
-  // PWA worker (best-effort)
+  // PWA worker
   if('serviceWorker' in navigator){
     navigator.serviceWorker.register('/pwa/sw.js').catch(()=>{});
   }
 
-  // Initial clock totals
+  // Visibility change — refresh when coming back to the app
+  document.addEventListener('visibilitychange', ()=>{
+    if(!document.hidden){
+      refreshTodayBilledFromDb(true).catch(()=>{});
+    }
+  });
+
+  // Initial data
   refreshTodayBilledFromDb(true).catch(()=>{});
   setInterval(()=>refreshTodayBilledFromDb(false).catch(()=>{}), 60_000);
 
@@ -358,4 +369,5 @@ boot().catch(err=>{
   console.error(err);
   if(els.activity) els.activity.textContent = 'Setup needed';
   if(els.timer) els.timer.textContent = '—';
+  showToast(err?.message || 'Failed to initialize');
 });

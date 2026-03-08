@@ -138,9 +138,3 @@ function drawDonut(canvas, items){
   ctx.fillStyle = 'rgba(0,0,0,0.50)';
   ctx.fill();
 }
-
-if('serviceWorker' in navigator){
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/pwa/sw.js').catch(()=>{});
-  });
-}

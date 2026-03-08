@@ -3,7 +3,6 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <!-- Optional: set when API runs on another host/port (e.g. http://localhost:7071) -->
   <meta name="api-base" content="" />
   <title>Customer</title>
 
@@ -51,13 +50,22 @@
         <h2>Totals</h2>
         <div class="row">
           <div class="kpi"><small>Total hours</small><b id="totalHours">0</b></div>
-          <div class="kpi"><small>Total (SEK)</small><b id="totalSek">0</b></div>
+          <div class="kpi"><small>Total cost</small><b><span id="totalCost">0</span> <span id="currencyLabel" class="currencyLabel">SEK</span></b></div>
         </div>
       </div>
 
       <div class="card">
         <h2>Approval</h2>
-        <button class="btnInline peach" id="approve">Approve</button>
+        <div id="approvalControls">
+          <div class="fieldRow" style="gap:8px; align-items:flex-end">
+            <div class="field" style="min-width:140px">
+              <label>Your name</label>
+              <input id="approverName" placeholder="e.g. Anna Svensson" />
+            </div>
+            <button class="btnInline peach" id="approve">Approve</button>
+            <button class="btnInline" id="revokeApproval" style="display:none">Revoke</button>
+          </div>
+        </div>
         <div id="approvalState" style="margin-top:8px;font-size:12px;color:var(--muted)">Not approved</div>
       </div>
     </div>
@@ -75,7 +83,7 @@
             <tr>
               <th>Consultant</th>
               <th style="text-align:right">Hours</th>
-              <th style="text-align:right">SEK</th>
+              <th style="text-align:right" id="costHead">Cost</th>
               <th>Running</th>
               <th id="forecastHead" style="text-align:right">Forecast</th>
             </tr>
@@ -112,7 +120,7 @@
               <th>Task</th>
               <th>Responsible</th>
               <th style="text-align:right">Hours</th>
-              <th style="text-align:right">SEK</th>
+              <th style="text-align:right" id="logCostHead">Cost</th>
             </tr>
           </thead>
           <tbody id="logs"></tbody>

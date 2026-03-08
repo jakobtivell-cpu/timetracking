@@ -24,12 +24,13 @@ module.exports = async function (context, req) {
 
          UPDATE dbo.TimeEntry
          SET
-           EndTimeUtc = @EndTimeUtc,
-           DurationMinutes = DATEDIFF(MINUTE, StartTimeUtc, @EndTimeUtc),
-           CostAmount = ROUND(RatePerHour * (DATEDIFF(SECOND, StartTimeUtc, @EndTimeUtc) / 3600.0), 2),
-           UpdatedAtUtc = SYSUTCDATETIME()
+           EndTimeUtc      = @EndTimeUtc,
+           DurationSeconds = DATEDIFF(SECOND, StartTimeUtc, @EndTimeUtc),
+           CostAmount      = ROUND(RatePerHour * (DATEDIFF(SECOND, StartTimeUtc, @EndTimeUtc) / 3600.0), 2),
+           UpdatedAtUtc    = SYSUTCDATETIME()
          WHERE TimeEntryId = @TimeEntryId
-           AND EndTimeUtc IS NULL;
+           AND EndTimeUtc IS NULL
+           AND CancelledAtUtc IS NULL;
 
          SELECT @@ROWCOUNT AS RowsUpdated;`
       );

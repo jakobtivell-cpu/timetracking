@@ -1,25 +1,27 @@
 /* Admin view
    - Manage tasks, customers, and customer+task responsibility mapping.
-   - This is the "source of truth" for dropdowns on Mobile + Customer.
+   - Source of truth for dropdowns on Mobile + Customer pages.
 */
 
 const els = {
-  actName: document.getElementById('actName'),
-  actRate: document.getElementById('actRate'),
-  saveAct: document.getElementById('saveAct'),
-  actTable: document.getElementById('actTable'),
+  actName:      document.getElementById('actName'),
+  actRate:      document.getElementById('actRate'),
+  actBillable:  document.getElementById('actBillable'),
+  saveAct:      document.getElementById('saveAct'),
+  actTable:     document.getElementById('actTable'),
 
-  custName: document.getElementById('custName'),
-  saveCust: document.getElementById('saveCust'),
-  custTable: document.getElementById('custTable'),
+  custName:     document.getElementById('custName'),
+  custCurrency: document.getElementById('custCurrency'),
+  saveCust:     document.getElementById('saveCust'),
+  custTable:    document.getElementById('custTable'),
 
-  rCustomer: document.getElementById('rCustomer'),
-  rTask: document.getElementById('rTask'),
-  rName: document.getElementById('rName'),
-  rSave: document.getElementById('rSave'),
-  rTable: document.getElementById('rTable'),
+  rCustomer:    document.getElementById('rCustomer'),
+  rTask:        document.getElementById('rTask'),
+  rName:        document.getElementById('rName'),
+  rSave:        document.getElementById('rSave'),
+  rTable:       document.getElementById('rTable'),
 
-  apiError: document.getElementById('apiError')
+  apiError:     document.getElementById('apiError')
 };
 
 let state = {
@@ -45,16 +47,18 @@ function normalizeTask(t){
   const taskId = Number(t.taskId ?? t.TaskId ?? t.id ?? t.Id);
   const taskName = (t.taskName ?? t.TaskName ?? t.name ?? t.Name ?? '').toString();
   const defaultRatePerHour = Number(t.defaultRatePerHour ?? t.DefaultRatePerHour ?? t.rate ?? t.Rate ?? 0);
+  const isBillable = t.isBillable !== undefined ? Boolean(t.isBillable) : (t.IsBillable !== undefined ? Boolean(t.IsBillable) : true);
   if(!taskName) return null;
-  return { taskId: Number.isFinite(taskId) ? taskId : undefined, taskName, defaultRatePerHour };
+  return { taskId: Number.isFinite(taskId) ? taskId : undefined, taskName, defaultRatePerHour, isBillable };
 }
 
 function normalizeCustomer(c){
   if(!c || typeof c !== 'object') return null;
   const customerId = Number(c.customerId ?? c.CustomerId ?? c.id ?? c.Id);
   const customerName = (c.customerName ?? c.CustomerName ?? c.name ?? c.Name ?? '').toString();
+  const currencyCode = (c.currencyCode ?? c.CurrencyCode ?? 'SEK').toString();
   if(!customerName) return null;
-  return { customerId: Number.isFinite(customerId) ? customerId : undefined, customerName };
+  return { customerId: Number.isFinite(customerId) ? customerId : undefined, customerName, currencyCode };
 }
 
 function normalizeResponsibility(r){
@@ -78,6 +82,15 @@ function clearTables(){
   els.rTask.append(new Option('Select task…', ''));
 }
 
+function escapeHtml(s){
+  return String(s ?? '')
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;')
+    .replaceAll('"','&quot;')
+    .replaceAll("'","&#39;");
+}
+
 function render(){
   clearTables();
 
@@ -86,13 +99,17 @@ function render(){
     tr.innerHTML = `
       <td>${escapeHtml(t.taskName)}</td>
       <td style="text-align:right">${Number.isFinite(Number(t.defaultRatePerHour)) ? Number(t.defaultRatePerHour) : 0}</td>
+      <td>${t.isBillable ? 'Yes' : 'No'}</td>
     `;
     els.actTable.appendChild(tr);
   });
 
   state.customers.forEach(c=>{
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${escapeHtml(c.customerName)}</td>`;
+    tr.innerHTML = `
+      <td>${escapeHtml(c.customerName)}</td>
+      <td>${escapeHtml(c.currencyCode)}</td>
+    `;
     els.custTable.appendChild(tr);
 
     if(c.customerId){
@@ -117,24 +134,11 @@ function render(){
   });
 }
 
-function escapeHtml(s){
-  return String(s ?? '')
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;')
-    .replaceAll('"','&quot;')
-    .replaceAll("'","&#39;");
-}
-
 async function tryGetAny(urls){
   let lastErr;
   for(const u of urls){
-    try{
-      return await API.get(u);
-    }catch(err){
-      lastErr = err;
-      console.error(err);
-    }
+    try{ return await API.get(u); }
+    catch(err){ lastErr = err; }
   }
   throw lastErr;
 }
@@ -145,32 +149,25 @@ async function load(){
   let tasks = [];
   let customers = [];
   let responsibilities = [];
-
   const errors = [];
 
   try{
     const raw = await API.get('/api/tasks');
-    tasks = (Array.isArray(raw) ? raw : raw?.tasks || raw?.Tasks || []).map(normalizeTask).filter(Boolean);
+    tasks = (Array.isArray(raw) ? raw : []).map(normalizeTask).filter(Boolean);
   }catch(err){
     errors.push(`Tasks: ${err?.message || err}`);
   }
 
   try{
     const raw = await API.get('/api/customers');
-    customers = (Array.isArray(raw) ? raw : raw?.customers || raw?.Customers || []).map(normalizeCustomer).filter(Boolean);
+    customers = (Array.isArray(raw) ? raw : []).map(normalizeCustomer).filter(Boolean);
   }catch(err){
     errors.push(`Customers: ${err?.message || err}`);
   }
 
   try{
-    // Try plural first; fallback to singular GET (added server-side).
-    const raw = await tryGetAny([
-      '/api/admin/responsibilities',
-      '/api/admin/responsibility'
-    ]);
-    responsibilities = (Array.isArray(raw) ? raw : raw?.responsibilities || raw?.Responsibilities || [])
-      .map(normalizeResponsibility)
-      .filter(Boolean);
+    const raw = await tryGetAny(['/api/admin/responsibilities', '/api/admin/responsibility']);
+    responsibilities = (Array.isArray(raw) ? raw : []).map(normalizeResponsibility).filter(Boolean);
   }catch(err){
     errors.push(`Responsibilities: ${err?.message || err}`);
   }
@@ -182,33 +179,29 @@ async function load(){
   render();
 
   if(errors.length){
-    showBanner(
-      'Some data could not be loaded from the API. Open DevTools → Console/Network for details. ' +
-      errors.join(' | ')
-    );
+    showBanner('Some data could not be loaded. ' + errors.join(' | '));
   }
 }
+
+// ---- Save handlers ----
 
 els.saveAct.addEventListener('click', async ()=>{
   clearBanner();
 
   const name = (els.actName.value || '').trim();
   const rate = Number(els.actRate.value);
+  const isBillable = els.actBillable ? els.actBillable.checked : true;
 
-  if(!name){
-    return showBanner('Activity name is required.');
-  }
-  if(!Number.isFinite(rate) || rate < 0){
-    return showBanner('SEK/h must be a non-negative number.');
-  }
+  if(!name) return showBanner('Activity name is required.');
+  if(!Number.isFinite(rate) || rate < 0) return showBanner('Rate must be a non-negative number.');
 
   try{
-    await API.post('/api/admin/task', { name, rate });
+    await API.post('/api/admin/task', { name, rate, isBillable });
     els.actName.value = '';
     els.actRate.value = '';
+    if(els.actBillable) els.actBillable.checked = true;
     await load();
   }catch(err){
-    console.error(err);
     showBanner(`Failed to save activity. ${err?.message || err}`);
   }
 });
@@ -217,16 +210,15 @@ els.saveCust.addEventListener('click', async ()=>{
   clearBanner();
 
   const name = (els.custName.value || '').trim();
-  if(!name){
-    return showBanner('Customer name is required.');
-  }
+  const currencyCode = (els.custCurrency?.value || 'SEK').trim();
+
+  if(!name) return showBanner('Customer name is required.');
 
   try{
-    await API.post('/api/admin/customer', { name });
+    await API.post('/api/admin/customer', { name, currencyCode });
     els.custName.value = '';
     await load();
   }catch(err){
-    console.error(err);
     showBanner(`Failed to save customer. ${err?.message || err}`);
   }
 });
@@ -247,10 +239,11 @@ els.rSave.addEventListener('click', async ()=>{
     els.rName.value = '';
     await load();
   }catch(err){
-    console.error(err);
     showBanner(`Failed to save responsibility. ${err?.message || err}`);
   }
 });
+
+// ---- Boot ----
 
 load().catch(err=>{
   console.error(err);

@@ -17,21 +17,27 @@ module.exports = async function (context, req) {
 
     const db = await getDb();
 
+    // Soft-delete: set CancelledAtUtc instead of DELETE
     const r = await db.request()
       .input('TimeEntryId', sql.BigInt, timeEntryId)
       .query(
-        `DELETE FROM dbo.TimeEntry
+        `UPDATE dbo.TimeEntry
+         SET
+           CancelledAtUtc = SYSUTCDATETIME(),
+           UpdatedAtUtc   = SYSUTCDATETIME()
          WHERE TimeEntryId = @TimeEntryId
-           AND EndTimeUtc IS NULL;
-         SELECT @@ROWCOUNT AS RowsDeleted;`
+           AND EndTimeUtc IS NULL
+           AND CancelledAtUtc IS NULL;
+
+         SELECT @@ROWCOUNT AS RowsCancelled;`
       );
 
-    const rowsDeleted = Number(r.recordset?.[0]?.RowsDeleted || 0);
+    const rowsCancelled = Number(r.recordset?.[0]?.RowsCancelled || 0);
 
     context.res = {
       status: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: { ok: true, rowsDeleted }
+      body: { ok: true, rowsCancelled }
     };
   } catch (err) {
     context.log(err);

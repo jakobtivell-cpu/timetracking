@@ -1,28 +1,35 @@
 const els = {
-  customer: document.getElementById('customer'),
-  period: document.getElementById('period'),
-  month: document.getElementById('month'),
-  year: document.getElementById('year'),
-  monthField: document.getElementById('monthField'),
-  yearField: document.getElementById('yearField'),
-  totalHours: document.getElementById('totalHours'),
-  totalSek: document.getElementById('totalSek'),
-  bars: document.getElementById('bars'),
-  donut: document.getElementById('donut'),
-  legend: document.getElementById('legend'),
-  logs: document.getElementById('logs'),
-  runningList: document.getElementById('runningList'),
-  consultants: document.getElementById('consultants'),
-  forecastHead: document.getElementById('forecastHead'),
-  approve: document.getElementById('approve'),
+  customer:      document.getElementById('customer'),
+  period:        document.getElementById('period'),
+  month:         document.getElementById('month'),
+  year:          document.getElementById('year'),
+  monthField:    document.getElementById('monthField'),
+  yearField:     document.getElementById('yearField'),
+  totalHours:    document.getElementById('totalHours'),
+  totalCost:     document.getElementById('totalCost'),
+  currencyLabel: document.getElementById('currencyLabel'),
+  costHead:      document.getElementById('costHead'),
+  logCostHead:   document.getElementById('logCostHead'),
+  bars:          document.getElementById('bars'),
+  donut:         document.getElementById('donut'),
+  legend:        document.getElementById('legend'),
+  logs:          document.getElementById('logs'),
+  runningList:   document.getElementById('runningList'),
+  consultants:   document.getElementById('consultants'),
+  forecastHead:  document.getElementById('forecastHead'),
+  approve:       document.getElementById('approve'),
+  revokeApproval:document.getElementById('revokeApproval'),
+  approverName:  document.getElementById('approverName'),
   approvalState: document.getElementById('approvalState'),
-  apiError: document.getElementById('apiError')
+  apiError:      document.getElementById('apiError')
 };
 
 let state = {
   customers: [],
   entries: [],
-  running: []
+  running: [],
+  approvalInfo: null,
+  currency: 'SEK'
 };
 
 function monthKey(d){
@@ -39,17 +46,6 @@ function monthStartLocal(key){
 function monthEndLocal(key){
   const d = monthStartLocal(key);
   return new Date(d.getFullYear(), d.getMonth()+1, 1, 0,0,0,0);
-}
-
-function setApprovalState(isApproved){
-  els.approvalState.textContent = isApproved ? 'Approved' : 'Not approved';
-}
-
-function approvalStorageKey(){
-  const cid = els.customer.value || '0';
-  const p = els.period.value;
-  const mk = (p==='month') ? els.month.value : (p==='ytd' ? els.year.value : 'all');
-  return `tt_approved_${cid}_${p}_${mk}`;
 }
 
 function isCurrentMonthSelected(){
@@ -69,12 +65,20 @@ function showBanner(text){
   els.apiError.textContent = text;
 }
 
+function updateCurrencyDisplay(code){
+  state.currency = code || 'SEK';
+  if(els.currencyLabel) els.currencyLabel.textContent = state.currency;
+  if(els.costHead) els.costHead.textContent = `Cost (${state.currency})`;
+  if(els.logCostHead) els.logCostHead.textContent = `Cost (${state.currency})`;
+}
+
 /**
- * If DurationMinutes is 0 (e.g. 15s entry) or missing, compute from timestamps.
+ * Compute duration hours from entry data.
+ * Prefers DurationSeconds, falls back to timestamp math.
  */
 function getDurationHours(e){
-  const mins = Number(e.durationMinutes);
-  if(Number.isFinite(mins) && mins > 0) return mins / 60;
+  const secs = Number(e.durationSeconds);
+  if(Number.isFinite(secs) && secs > 0) return secs / 3600;
 
   if(e.startTimeUtc && e.endTimeUtc){
     const s = new Date(e.startTimeUtc).getTime();
@@ -92,13 +96,13 @@ function getDurationHours(e){
 
 function calcTotals(entries){
   let hours = 0;
-  let sek = 0;
+  let cost = 0;
   entries.forEach(e=>{
     hours += getDurationHours(e);
-    const s = Number(e.costAmount||0);
-    if(Number.isFinite(s)) sek += s;
+    const c = Number(e.costAmount||0);
+    if(Number.isFinite(c)) cost += c;
   });
-  return { hours, sek };
+  return { hours, cost };
 }
 
 function groupSum(entries, keyFn, valFn){
@@ -111,12 +115,64 @@ function groupSum(entries, keyFn, valFn){
   return map;
 }
 
+// ---- Approval (server-side) ----
+
+function getApprovalPeriodKey(){
+  if(els.period.value !== 'month') return null;
+  return els.month.value || null;
+}
+
+async function loadApprovalState(){
+  const cid = Number(els.customer.value);
+  const pk = getApprovalPeriodKey();
+  if(!cid || !pk){
+    state.approvalInfo = null;
+    return;
+  }
+
+  try{
+    const info = await API.get(`/api/approval?customerId=${cid}&periodKey=${pk}`);
+    state.approvalInfo = info;
+  }catch{
+    state.approvalInfo = null;
+  }
+}
+
+function renderApprovalState(){
+  const pk = getApprovalPeriodKey();
+  const showApproval = !!pk; // Only show for month view
+
+  els.approve.style.display = showApproval ? '' : 'none';
+  els.approverName.parentElement.style.display = showApproval ? '' : 'none';
+
+  if(!showApproval){
+    els.approvalState.textContent = '';
+    els.revokeApproval.style.display = 'none';
+    return;
+  }
+
+  const info = state.approvalInfo;
+  const isApproved = info && info.isApproved;
+
+  if(isApproved){
+    els.approvalState.textContent = `Approved by ${info.approvedBy} on ${new Date(info.approvedAtUtc).toLocaleDateString()}`;
+    els.approve.style.display = 'none';
+    els.revokeApproval.style.display = '';
+  } else {
+    els.approvalState.textContent = 'Not approved';
+    els.approve.style.display = '';
+    els.revokeApproval.style.display = 'none';
+  }
+}
+
+// ---- Rendering ----
+
 function render(){
   const ended = state.entries.filter(e=>!!e.endTimeUtc);
 
   const totals = calcTotals(ended);
   els.totalHours.textContent = totals.hours.toFixed(2);
-  els.totalSek.textContent = Math.round(totals.sek).toString();
+  els.totalCost.textContent = Math.round(totals.cost).toString();
 
   els.monthField.style.display = els.period.value === 'month' ? '' : 'none';
   els.yearField.style.display = els.period.value === 'ytd' ? '' : 'none';
@@ -128,24 +184,22 @@ function render(){
   renderLogs(ended);
   renderRunning(state.running);
   renderConsultants(ended, state.running);
-
-  const approved = localStorage.getItem(approvalStorageKey()) === '1';
-  setApprovalState(approved);
+  renderApprovalState();
 }
 
 function renderBars(entries){
   els.bars.innerHTML='';
   const map = groupSum(entries, e=>e.taskName || '—', e=>Number(e.costAmount||0));
-  const rows = [...map.entries()].map(([task, sek])=>({task, sek})).sort((a,b)=>b.sek-a.sek);
-  const max = Math.max(1, ...rows.map(r=>r.sek));
+  const rows = [...map.entries()].map(([task, cost])=>({task, cost})).sort((a,b)=>b.cost-a.cost);
+  const max = Math.max(1, ...rows.map(r=>r.cost));
 
   rows.forEach(r=>{
     const row = document.createElement('div');
     row.className='barRow';
     row.innerHTML = `
       <div>${r.task}</div>
-      <div class="bar"><i style="width:${(r.sek/max*100).toFixed(1)}%"></i></div>
-      <div style="text-align:right">${Math.round(r.sek)}</div>
+      <div class="bar"><i style="width:${(r.cost/max*100).toFixed(1)}%"></i></div>
+      <div style="text-align:right">${Math.round(r.cost)}</div>
     `;
     els.bars.appendChild(row);
   });
@@ -243,24 +297,24 @@ function renderRunning(running){
 function renderConsultants(entries, running){
   els.consultants.innerHTML='';
 
-  const sekByConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>Number(e.costAmount||0));
+  const costByConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>Number(e.costAmount||0));
   const hoursByConsultant = groupSum(entries, e=>e.consultantName || 'Consultant', e=>getDurationHours(e));
 
   const runningByConsultant = new Map();
   running.forEach(r=>runningByConsultant.set(r.consultantName || 'Consultant', r));
 
-  const rows = [...sekByConsultant.keys()].map(name=>{
+  const rows = [...costByConsultant.keys()].map(name=>{
     const hours = hoursByConsultant.get(name) || 0;
-    const sek = sekByConsultant.get(name) || 0;
+    const cost = costByConsultant.get(name) || 0;
     const run = runningByConsultant.get(name);
     return {
       name,
       hours,
-      sek,
+      cost,
       runningTask: run ? (run.taskName || '') : '',
       runningSince: run ? run.startTimeUtc : null
     };
-  }).sort((a,b)=>b.sek-a.sek);
+  }).sort((a,b)=>b.cost-a.cost);
 
   const showForecast = isCurrentMonthSelected();
   const forecastMultiplier = (()=>{
@@ -273,7 +327,7 @@ function renderConsultants(entries, running){
 
   rows.forEach(r=>{
     const tr = document.createElement('tr');
-    const forecast = r.sek * forecastMultiplier;
+    const forecast = r.cost * forecastMultiplier;
 
     const runningText = r.runningTask
       ? `${r.runningTask} (${formatHHMM(r.runningSince)})`
@@ -282,7 +336,7 @@ function renderConsultants(entries, running){
     tr.innerHTML = `
       <td>${r.name}</td>
       <td style="text-align:right">${r.hours.toFixed(2)}</td>
-      <td style="text-align:right">${Math.round(r.sek)}</td>
+      <td style="text-align:right">${Math.round(r.cost)}</td>
       <td>${runningText}</td>
       <td style="text-align:right; display:${showForecast ? '' : 'none'}">${Math.round(forecast)}</td>
     `;
@@ -296,15 +350,20 @@ function renderConsultants(entries, running){
   }
 }
 
+// ---- Data loading ----
+
 async function refresh(){
   clearBanner();
 
   const cid = Number(els.customer.value);
   if(!cid) return;
 
+  // Update currency from selected customer
+  const selectedCustomer = state.customers.find(c => c.customerId === cid);
+  if(selectedCustomer) updateCurrencyDisplay(selectedCustomer.currencyCode);
+
   let fromIso = '';
   let toIso = '';
-
   const p = els.period.value;
 
   if(p === 'month'){
@@ -317,10 +376,8 @@ async function refresh(){
   if(p === 'ytd'){
     const y = Number(els.year.value);
     const fromLocal = new Date(y,0,1,0,0,0,0);
-
     const now = new Date();
     const toLocal = (y === now.getFullYear()) ? addDays(startOfLocalDay(now), 1) : new Date(y+1,0,1,0,0,0,0);
-
     fromIso = fromLocal.toISOString();
     toIso = toLocal.toISOString();
   }
@@ -331,12 +388,12 @@ async function refresh(){
 
   state.entries = await API.get(`/api/timeentries?${q.toString()}`);
   state.running = await API.get(`/api/timeentries?customerId=${encodeURIComponent(cid)}&running=1`);
+  await loadApprovalState();
 
   render();
 }
 
 function pickLatestMonthWithData(allEntries){
-  // Choose latest StartTimeUtc month with ended entries (so you land on Jan if Feb only has tiny test)
   const ended = (allEntries || []).filter(e => e && e.startTimeUtc && e.endTimeUtc);
   if(!ended.length) return null;
 
@@ -362,6 +419,9 @@ async function boot(){
     els.customer.append(new Option(c.customerName, c.customerId));
   });
 
+  // Update currency for first customer
+  if(state.customers[0]) updateCurrencyDisplay(state.customers[0].currencyCode);
+
   // months/years
   els.month.innerHTML='';
   els.year.innerHTML='';
@@ -383,7 +443,7 @@ async function boot(){
   els.month.value = monthKey(now);
   els.year.value = String(now.getFullYear());
 
-  // ACTION: auto-pick month that actually has data (uses all-time fetch once)
+  // Auto-pick month with data
   try{
     const cid = Number(els.customer.value);
     const all = await API.get(`/api/timeentries?customerId=${encodeURIComponent(cid)}`);
@@ -392,19 +452,57 @@ async function boot(){
       const hasOpt = Array.from(els.month.options).some(o => o.value === mk);
       if(hasOpt) els.month.value = mk;
     }
-  }catch{
-    // ignore, page still works
-  }
+  }catch{ /* ignore */ }
 
+  // Restore approver name
+  const savedName = localStorage.getItem('tt_approverName');
+  if(savedName) els.approverName.value = savedName;
+
+  // Wire events
   ['customer','period','month','year'].forEach(id=>{
-    els[id].addEventListener('change', refresh);
+    els[id].addEventListener('change', ()=> refresh().catch(err=>{
+      console.error(err);
+      showBanner(`Refresh failed: ${err?.message || err}`);
+    }));
   });
 
-  els.period.addEventListener('change', ()=>{ render(); });
+  els.customer.addEventListener('change', ()=>{
+    const c = state.customers.find(c => c.customerId === Number(els.customer.value));
+    if(c) updateCurrencyDisplay(c.currencyCode);
+  });
 
-  els.approve.addEventListener('click', ()=>{
-    localStorage.setItem(approvalStorageKey(), '1');
-    setApprovalState(true);
+  els.approve.addEventListener('click', async ()=>{
+    const name = (els.approverName.value || '').trim();
+    if(!name){ showBanner('Please enter your name to approve.'); return; }
+
+    const cid = Number(els.customer.value);
+    const pk = getApprovalPeriodKey();
+    if(!cid || !pk){ showBanner('Select a month to approve.'); return; }
+
+    localStorage.setItem('tt_approverName', name);
+
+    try{
+      await API.post('/api/approval', { customerId: cid, periodKey: pk, approvedBy: name });
+      await loadApprovalState();
+      renderApprovalState();
+    }catch(err){
+      showBanner(`Approval failed: ${err?.message || err}`);
+    }
+  });
+
+  els.revokeApproval.addEventListener('click', async ()=>{
+    const name = (els.approverName.value || '').trim() || 'Unknown';
+    const cid = Number(els.customer.value);
+    const pk = getApprovalPeriodKey();
+    if(!cid || !pk) return;
+
+    try{
+      await API.post('/api/approval', { customerId: cid, periodKey: pk, approvedBy: name, revoke: true });
+      await loadApprovalState();
+      renderApprovalState();
+    }catch(err){
+      showBanner(`Revoke failed: ${err?.message || err}`);
+    }
   });
 
   await refresh();
@@ -416,12 +514,12 @@ boot().catch(err=>{
 
   if(err && err.name === 'ApiHttpError'){
     const body = (err.bodyText || '').trim();
-    const extra = body ? ` Response: ${body}` : ` Response: (empty)`;
-    showBanner(`Failed to load data from API. ${err.url} -> HTTP ${err.status}.${extra}`);
+    const extra = body ? ` Response: ${body}` : '';
+    showBanner(`Failed to load data. ${err.url} → HTTP ${err.status}.${extra}`);
   } else {
     showBanner(`Failed to load data. ${err?.message || String(err)}`);
   }
 
   els.totalHours.textContent = '—';
-  els.totalSek.textContent = '—';
+  els.totalCost.textContent = '—';
 });

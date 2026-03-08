@@ -20,15 +20,20 @@
     <div class="top">
       <div class="activity" id="activity">—</div>
       <div class="timer" id="timer">00:00:00</div>
+      <div class="dailyHours" id="dailyHours" title="Billed hours today"></div>
     </div>
 
     <div class="grid" id="grid" aria-label="Tasks"></div>
 
     <div class="bottom">
       <button class="pause" id="pauseBtn" type="button">Pause</button>
+      <button class="cancel" id="cancelBtn" type="button">✕</button>
     </div>
 
-    <div class="hint">Tap a task to switch + start. Tap Pause to switch to break.</div>
+    <div class="hint">Tap a task to switch + start. Pause for break. ✕ to cancel.</div>
+
+    <!-- Error toast -->
+    <div class="toast" id="toast" role="alert" aria-live="polite"></div>
   </div>
 </body>
 </html>

@@ -20,11 +20,18 @@
         <h2>Activities</h2>
         <div class="fieldRow">
           <div class="field"><label>Activity</label><input id="actName" placeholder="e.g. Forecastapp" /></div>
-          <div class="field"><label>SEK/h</label><input id="actRate" type="number" placeholder="1000" /></div>
-          <div class="field" style="flex:.6"><label>&nbsp;</label><button id="saveAct" class="btnInline peach">Save</button></div>
+          <div class="field" style="flex:.5"><label>Rate/h</label><input id="actRate" type="number" placeholder="1000" /></div>
+          <div class="field" style="flex:.5">
+            <label>Billable</label>
+            <label class="toggle">
+              <input type="checkbox" id="actBillable" checked />
+              <span class="toggleLabel">Yes</span>
+            </label>
+          </div>
+          <div class="field" style="flex:.4"><label>&nbsp;</label><button id="saveAct" class="btnInline peach">Save</button></div>
         </div>
         <table class="table">
-          <thead><tr><th>Activity</th><th style="text-align:right">SEK/h</th></tr></thead>
+          <thead><tr><th>Activity</th><th style="text-align:right">Rate/h</th><th>Billable</th></tr></thead>
           <tbody id="actTable"></tbody>
         </table>
       </div>
@@ -33,10 +40,21 @@
         <h2>Customers</h2>
         <div class="fieldRow">
           <div class="field"><label>Customer</label><input id="custName" placeholder="e.g. RN Nordic" /></div>
-          <div class="field" style="flex:.6"><label>&nbsp;</label><button id="saveCust" class="btnInline peach">Save</button></div>
+          <div class="field" style="flex:.5">
+            <label>Currency</label>
+            <select id="custCurrency">
+              <option value="SEK" selected>SEK</option>
+              <option value="EUR">EUR</option>
+              <option value="USD">USD</option>
+              <option value="NOK">NOK</option>
+              <option value="DKK">DKK</option>
+              <option value="GBP">GBP</option>
+            </select>
+          </div>
+          <div class="field" style="flex:.4"><label>&nbsp;</label><button id="saveCust" class="btnInline peach">Save</button></div>
         </div>
         <table class="table">
-          <thead><tr><th>Customer</th></tr></thead>
+          <thead><tr><th>Customer</th><th>Currency</th></tr></thead>
           <tbody id="custTable"></tbody>
         </table>
       </div>
@@ -49,7 +67,7 @@
           <div class="field"><label>Customer</label><select id="rCustomer"></select></div>
           <div class="field"><label>Task</label><select id="rTask"></select></div>
           <div class="field"><label>Responsible</label><input id="rName" placeholder="e.g. Martin Fossum" /></div>
-          <div class="field" style="flex:.6"><label>&nbsp;</label><button id="rSave" class="btnInline peach">Save</button></div>
+          <div class="field" style="flex:.4"><label>&nbsp;</label><button id="rSave" class="btnInline peach">Save</button></div>
         </div>
 
         <table class="table">
