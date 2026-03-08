@@ -18,9 +18,36 @@
 <body class="page-mobile">
   <div class="phone">
     <div class="top">
-      <div class="activity" id="activity">—</div>
-      <div class="timer" id="timer">00:00:00</div>
-      <div class="dailyHours" id="dailyHours" title="Billed hours today"></div>
+      <div class="topLeft">
+        <div class="activity" id="activity">—</div>
+        <div class="timer" id="timer">00:00:00</div>
+      </div>
+
+      <!-- Stealth billed-hours clock gauge -->
+      <div class="clockWrap">
+        <svg class="clock" viewBox="0 0 100 100">
+          <!-- Track arc -->
+          <path class="clockTrack"
+                d="M 20,80 A 42,42 0 1,1 80,80"
+                fill="none" stroke="rgba(255,255,255,0.08)" stroke-width="5"
+                stroke-linecap="round" />
+          <!-- Progress arc -->
+          <path class="clockProg" id="clockProg"
+                d="M 20,80 A 42,42 0 1,1 80,80"
+                fill="none" stroke="rgba(255,255,255,0.35)" stroke-width="5"
+                stroke-linecap="round" />
+          <!-- Hour hand -->
+          <line id="hourHand" class="clockHand clockHandHour"
+                x1="50" y1="50" x2="50" y2="22"
+                stroke="rgba(255,255,255,0.7)" stroke-width="3" stroke-linecap="round" />
+          <!-- Minute hand -->
+          <line id="minHand" class="clockHand clockHandMin"
+                x1="50" y1="50" x2="50" y2="16"
+                stroke="rgba(255,255,255,0.4)" stroke-width="1.5" stroke-linecap="round" />
+          <!-- Center dot -->
+          <circle cx="50" cy="50" r="2.5" fill="rgba(255,255,255,0.5)" />
+        </svg>
+      </div>
     </div>
 
     <div class="grid" id="grid" aria-label="Tasks"></div>
@@ -29,8 +56,6 @@
       <button class="pause" id="pauseBtn" type="button">Pause</button>
       <button class="cancel" id="cancelBtn" type="button">✕</button>
     </div>
-
-    <div class="hint">Tap a task to switch + start. Pause for break. ✕ to cancel.</div>
 
     <!-- Error toast -->
     <div class="toast" id="toast" role="alert" aria-live="polite"></div>

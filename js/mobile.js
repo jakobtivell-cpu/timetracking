@@ -19,7 +19,9 @@ const els = {
   tasks:      document.getElementById('grid'),
   activity:   document.getElementById('activity'),
   timer:      document.getElementById('timer'),
-  dailyHours: document.getElementById('dailyHours'),
+  clockProg:  document.getElementById('clockProg'),
+  hourHand:   document.getElementById('hourHand'),
+  minHand:    document.getElementById('minHand'),
   toast:      document.getElementById('toast')
 };
 
@@ -32,6 +34,7 @@ let state = {
   consultantName: null,
   todayBilledSecondsFromDb: 0,
   lastDayTotalFetchMs: 0,
+  clockLen: null,
   busy: false
 };
 
@@ -293,9 +296,17 @@ async function refreshTodayBilledFromDb(force=false){
   }
 }
 
-function updateDailyHours(){
-  if(!els.dailyHours) return;
+function updateClock(){
+  if(!els.clockProg || !els.hourHand || !els.minHand) return;
 
+  // Initialise arc length once
+  if(state.clockLen === null){
+    try{ state.clockLen = els.clockProg.getTotalLength(); }
+    catch{ state.clockLen = 230; } // approximate fallback
+    els.clockProg.style.strokeDasharray = `${state.clockLen} ${state.clockLen}`;
+  }
+
+  // Billed seconds today = DB total + running (if billable)
   let billedSeconds = state.todayBilledSecondsFromDb;
   if(state.running?.mode === 'task'){
     const task = state.taskMap.get(state.running.taskId);
@@ -304,10 +315,27 @@ function updateDailyHours(){
     }
   }
 
-  const hours = billedSeconds / 3600;
-  const pct = Math.min(100, (hours / CAP_HOURS) * 100);
-  els.dailyHours.textContent = `${hours.toFixed(1)}h`;
-  els.dailyHours.style.setProperty('--pct', `${pct.toFixed(0)}%`);
+  const billedHours = billedSeconds / 3600;
+  const pct = Math.max(0, Math.min(1, billedHours / CAP_HOURS));
+
+  // Progress arc — stroke-dasharray drives the fill
+  const dash = state.clockLen * pct;
+  els.clockProg.style.strokeDasharray = `${dash} ${state.clockLen}`;
+
+  // Hands — sweep ~240° arc matching the gauge
+  const sweep = 240;
+  const startAngle = -210; // starts at bottom-left of the arc
+
+  // Hour hand: tracks billed hours progress
+  const hourDeg = startAngle + (pct * sweep);
+
+  // Minute hand: real clock minutes for subtle life
+  const mins = new Date().getMinutes();
+  const secs = new Date().getSeconds();
+  const minDeg = startAngle + ((mins * 60 + secs) / 3600) * sweep;
+
+  els.hourHand.setAttribute('transform', `rotate(${hourDeg} 50 50)`);
+  els.minHand.setAttribute('transform', `rotate(${minDeg} 50 50)`);
 }
 
 // ---- Render loop ----
@@ -318,7 +346,7 @@ function renderLoop(){
   } else {
     setStatus('—', 0);
   }
-  updateDailyHours();
+  updateClock();
   requestAnimationFrame(renderLoop);
 }
 
